@@ -66,7 +66,7 @@
                 sbList.AppendLine($"List of all actions. For more information on each action, run the HELP <ACTIONNAME> action (or shelp <ACTIONNAME> in the server console).");
 
                 List<IAction> temp = ListPool<IAction>.Pool.Get();
-                foreach (KeyValuePair<string, Type> kvp in ScriptHelper.ActionTypes)
+                foreach (KeyValuePair<ActionNameData, Type> kvp in ScriptHelper.ActionTypes)
                 {
                     IAction lAction = Activator.CreateInstance(kvp.Value) as IAction;
                     temp.Add(lAction);
@@ -142,7 +142,7 @@
             }
 
             // Action Help
-            else if (ScriptHelper.ActionTypes.TryGetValue(Arguments[0].ToUpper(), out Type type))
+            else if (ScriptHelper.TryGetActionType(Arguments[0].ToUpper(), out Type type))
             {
                 IAction action = Activator.CreateInstance(type) as IAction;
 
@@ -160,22 +160,23 @@
                 sb.AppendLine($"{helpInfo.Description}");
                 sb.AppendLine($"Action type: {MsgGen.Display(action.Subgroup)}");
 
-                if (action.IsObsolete(out string reason))
-                    sb.AppendLine($"** THIS ACTION IS MARKED AS OBSOLETE AND REASON DIRECTIVES SHOULD BE READ BEFORE USING. REASON: {reason} **");
-
-                sb.AppendLine();
-
-                if (action is ILongDescription longDescription)
-                {
-                    sb.AppendLine(longDescription.LongDescription);
-                }
-
                 // Usage
                 sb.Append($"Usage: {action.Name}");
                 foreach (Argument arg in helpInfo.ExpectedArguments)
                 {
                     string[] chars = arg.Required ? new[] { "<", ">" } : new[] { "[", "]" };
                     sb.Append($" {chars[0]}{arg.ArgumentName.ToUpper()}{chars[1]}");
+                }
+
+                sb.AppendLine();
+
+                if (action.IsObsolete(out string reason))
+                    sb.AppendLine($"** THIS ACTION IS MARKED AS OBSOLETE AND REASON DIRECTIVES SHOULD BE READ BEFORE USING. REASON: {reason} **");
+
+                if (action is ILongDescription longDescription)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine(longDescription.LongDescription);
                 }
 
                 sb.AppendLine();

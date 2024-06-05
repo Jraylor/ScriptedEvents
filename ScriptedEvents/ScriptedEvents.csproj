@@ -82,9 +82,12 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Actions\CASSIE\AdvCassieAction.cs" />
+    <Compile Include="Actions\CASSIE\SilentCassiePlayerAction.cs" />
     <Compile Include="Actions\CASSIE\CassiePlayerAction.cs" />
     <Compile Include="Actions\DebugActions\DebugConditionV2.cs" />
     <Compile Include="Actions\Map\CleanupAction.cs" />
+    <Compile Include="Actions\Map\ElevatorAction.cs" />
     <Compile Include="Actions\Map\GeneratorAction.cs" />
     <Compile Include="Actions\Misc\PrintAction.cs" />
     <Compile Include="Actions\Player\CustomInfoAction.cs" />
@@ -158,6 +161,7 @@
     <Compile Include="Conditions\Strings\StringNotContains.cs" />
     <Compile Include="Conditions\Strings\StringContains.cs" />
     <Compile Include="Integrations\RueiManager.cs" />
+    <Compile Include="Structures\ActionNameData.cs" />
     <Compile Include="Structures\Contributor.cs" />
     <Compile Include="Structures\CoroutineData.cs" />
     <Compile Include="Structures\CustomCommand.cs" />

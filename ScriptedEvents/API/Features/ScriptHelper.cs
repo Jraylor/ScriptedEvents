@@ -6,6 +6,7 @@ namespace ScriptedEvents.API.Features
     using System.IO;
     using System.Linq;
     using System.Reflection;
+    using System.Text;
     using System.Text.RegularExpressions;
 
     using CommandSystem;
@@ -43,7 +44,7 @@ namespace ScriptedEvents.API.Features
         /// <summary>
         /// Gets a dictionary of action names and their respective types.
         /// </summary>
-        public static Dictionary<string, Type> ActionTypes { get; } = new();
+        public static Dictionary<ActionNameData, Type> ActionTypes { get; } = new();
 
         /// <summary>
         /// Gets a dictionary of <see cref="Script"/> that are currently running, and the <see cref="CoroutineHandle"/> that is running them.
@@ -53,6 +54,21 @@ namespace ScriptedEvents.API.Features
         public static Dictionary<string, CustomAction> CustomActions { get; } = new();
 
         public static RueIManager Ruei { get; } = new RueIManager();
+
+        public static bool TryGetActionType(string name, out Type type)
+        {
+            foreach (var actionData in ActionTypes)
+            {
+                if (actionData.Key.Name == name || actionData.Key.Aliases.Contains(name))
+                {
+                    type = actionData.Value;
+                    return true;
+                }
+            }
+
+            type = null;
+            return false;
+        }
 
         /// <summary>
         /// Reads and returns the text of a script.
@@ -72,6 +88,36 @@ namespace ScriptedEvents.API.Features
         {
             InternalRead(scriptName, out string path);
             return path;
+        }
+
+        /// <summary>
+        /// Retrieves a list of all scripts in the server.
+        /// </summary>
+        /// <param name="sender">Optional sender.</param>
+        /// <returns>A list of all scripts.</returns>
+        /// <remarks>WARNING: Scripts created through this method are NOT DISPOSED!!! Call <see cref="Script.Dispose"/> when done with them.</remarks>
+        public static List<Script> ListScripts(ICommandSender sender = null)
+        {
+            List<Script> scripts = new();
+            string[] files = Directory.GetFiles(ScriptPath, "*.txt", SearchOption.AllDirectories);
+
+            foreach (string file in files)
+            {
+                if (File.ReadAllText(file).Contains("!-- HELPRESPONSE"))
+                    continue;
+
+                try
+                {
+                    Script scr = ReadScript(Path.GetFileNameWithoutExtension(file), sender, true);
+                    scripts.Add(scr);
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e);
+                }
+            }
+
+            return scripts;
         }
 
         /// <summary>
@@ -147,9 +193,8 @@ namespace ScriptedEvents.API.Features
 #if DEBUG
                 Log.Debug($"Queuing action {keyword} {string.Join(", ", actionParts.Skip(1))}");
 #endif
-                ActionTypes.TryGetValue(keyword, out Type actionType);
 
-                if (actionType is null)
+                if (!TryGetActionType(keyword, out Type actionType))
                 {
                     // Check for custom actions
                     if (CustomActions.TryGetValue(keyword, out CustomAction customAction))
@@ -163,23 +208,7 @@ namespace ScriptedEvents.API.Features
                         continue;
                     }
 
-                    bool hasUsedAlias = false;
-
-                    // Alias support
-                    foreach (Type actionType123 in ActionTypes.Values)
-                    {
-                        var mock = (IAction)Activator.CreateInstance(actionType123);
-                        mock.Arguments = actionParts.Skip(1).Select(str => str.RemoveWhitespace()).ToArray();
-                        if (mock.Aliases.Contains(keyword))
-                        {
-                            hasUsedAlias = true;
-                            actionList.Add(mock);
-                            ListPool<string>.Pool.Return(actionParts);
-                            continue;
-                        }
-                    }
-
-                    if (!suppressWarnings && !hasUsedAlias)
+                    if (!suppressWarnings)
                         Log.Warn($"[L: {script.CurrentLine + 1}]" + ErrorGen.Get(102, keyword.RemoveWhitespace(), scriptName));
 
                     actionList.Add(new NullAction("ERROR"));
@@ -230,7 +259,7 @@ namespace ScriptedEvents.API.Features
 
             script.Sender = executor;
 
-            script.DebugLog($"Debug script read successfully. Name: {script.ScriptName} | Actions: {string.Join(" ", script.Actions.Length)} | Flags: {string.Join(" ", script.Flags)} | Labels: {string.Join(" ", script.Labels)} | Comments: {script.Actions.Where(action => action is NullAction @null && @null.Type is "COMMENT").Count()}");
+            script.DebugLog($"Debug script read successfully. Name: {script.ScriptName} | Actions: {script.Actions.Count(act => act is not NullAction)} | Flags: {string.Join(" ", script.Flags)} | Labels: {string.Join(" ", script.Labels)} | Comments: {script.Actions.Count(action => action is NullAction @null && @null.Type is "COMMENT")}");
 
             return script;
         }
@@ -368,6 +397,33 @@ namespace ScriptedEvents.API.Features
         }
 
         /// <summary>
+        /// Try-get a <see cref="Lift"/> array given an input.
+        /// </summary>
+        /// <param name="input">The input.</param>
+        /// <param name="lifts">The lift objects.</param>
+        /// <param name="source">The script source.</param>
+        /// <returns>Whether or not the try-get was successful.</returns>
+        public static bool TryGetLifts(string input, out Lift[] lifts, Script source = null)
+        {
+            List<Lift> liftList = ListPool<Lift>.Pool.Get();
+            if (input is "*" or "ALL")
+            {
+                liftList = Lift.List.ToList();
+            }
+            else if (VariableSystem.TryParse<ElevatorType>(input, out ElevatorType et, source))
+            {
+                liftList = Lift.List.Where(l => l.Type == et).ToList();
+            }
+            else
+            {
+                liftList = Lift.List.Where(l => l.Name.ToLower() == input.ToLower()).ToList();
+            }
+
+            lifts = ListPool<Lift>.Pool.ToArrayReturn(liftList);
+            return lifts.Length > 0;
+        }
+
+        /// <summary>
         /// Try-get a <see cref="Room"/> array given an input.
         /// </summary>
         /// <param name="input">The input.</param>
@@ -474,6 +530,26 @@ namespace ScriptedEvents.API.Features
         }
 
         /// <summary>
+        /// Determines if an action is obsolete.
+        /// </summary>
+        /// <param name="action">The action.</param>
+        /// <param name="message">A message regarding the obsolete.</param>
+        /// <returns>Whether or not the action is obsolete.</returns>
+        public static bool IsObsolete(this IAction action, out string message)
+        {
+            Type t = action.GetType();
+            var obsolete = t.CustomAttributes.FirstOrDefault(attr => attr.AttributeType.Name == "ObsoleteAttribute");
+            if (obsolete is not null)
+            {
+                message = obsolete.ConstructorArguments[0].Value.ToString();
+                return true;
+            }
+
+            message = string.Empty;
+            return false;
+        }
+
+        /// <summary>
         /// Reads a script.
         /// </summary>
         /// <param name="scriptName">The name of the script.</param>
@@ -530,7 +606,7 @@ namespace ScriptedEvents.API.Features
                     IAction temp = (IAction)Activator.CreateInstance(type);
 
                     Log.Debug($"Adding Action: {temp.Name} | From Assembly: {assembly.GetName().Name}");
-                    ActionTypes.Add(temp.Name, type);
+                    ActionTypes.Add(new() { Name = temp.Name, Aliases = temp.Aliases }, type);
                     i++;
                 }
             }
@@ -702,7 +778,7 @@ namespace ScriptedEvents.API.Features
             scr.DebugLog("-----------");
             scr.IsRunning = false;
 
-            if (MainPlugin.Singleton.Config.LoopScripts is not null && MainPlugin.Singleton.Config.LoopScripts.Contains(scr.ScriptName))
+            if (scr.Flags.Contains("LOOP"))
             {
                 scr.DebugLog("Re-running looped script.");
                 ReadAndRun(scr.ScriptName, scr.Sender); // so that it re-reads the content of the text file.
@@ -712,20 +788,6 @@ namespace ScriptedEvents.API.Features
             RunningScripts.Remove(scr);
 
             scr.Dispose();
-        }
-
-        public static bool IsObsolete(this IAction action, out string message)
-        {
-            Type t = action.GetType();
-            var obsolete = t.CustomAttributes.FirstOrDefault(attr => attr.AttributeType.Name == "ObsoleteAttribute");
-            if (obsolete is not null)
-            {
-                message = obsolete.ConstructorArguments[0].Value.ToString();
-                return true;
-            }
-
-            message = string.Empty;
-            return false;
         }
     }
 }
