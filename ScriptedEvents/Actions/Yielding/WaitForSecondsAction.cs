@@ -5,10 +5,11 @@
     using MEC;
 
     using ScriptedEvents.API.Enums;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Interfaces;
+    using ScriptedEvents.API.Modules;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
     public class WaitForSecondsAction : ITimingAction, IHelpInfo
     {
@@ -19,7 +20,10 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Yielding;
@@ -30,19 +34,13 @@
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("seconds", typeof(float), "The amount of seconds. Variables & Math are supported.", true),
+            new Argument("seconds", typeof(float), "The amount of seconds. Math is supported.", true),
         };
 
         /// <inheritdoc/>
         public float? Execute(Script script, out ActionResponse message)
         {
-            if (Arguments.Length < 1)
-            {
-                message = new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
-                return null;
-            }
-
-            string formula = VariableSystem.ReplaceVariables(string.Join(" ", Arguments), script);
+            string formula = VariableSystemV2.ReplaceVariables(Arguments.JoinMessage(), script);
 
             if (!ConditionHelperV2.TryMath(formula, out MathResult result))
             {

@@ -33,10 +33,9 @@
             { typeof(byte), "Byte (Whole Number, 0-255)" },
             { typeof(float), "Float (Number)" },
             { typeof(bool), "Boolean (TRUE/FALSE)" },
-            { typeof(Player[]), "Player List" },
-            { typeof(List<Player>), "Player List" },
+            { typeof(PlayerCollection), "Player List" },
             { typeof(Door[]), "Door List" },
-            { typeof(List<Door>), "Door List" },
+            { typeof(Room[]), "Room List" },
             { typeof(RoleTypeId), "RoleTypeId (ID / Number)" },
             { typeof(SpawnableTeamType), "Spawnable Team (ChaosInsurgency OR NineTailedFox)" },
             { typeof(RoomType), "RoomType (ID / Number)" },
@@ -46,6 +45,7 @@
             { typeof(IStringVariable), "String (Message/Text) Variable" },
             { typeof(IFloatVariable), "Numerical Variable" },
             { typeof(ILongVariable), "Numerical Variable" },
+            { typeof(RoleTypeIdOrTeam), "RoleTypeId (ID / Number) OR Team (ID / Number)" },
             { typeof(object), "Any Type" },
         };
 
@@ -57,7 +57,7 @@
         /// <param name="paramName">The name of the parameter that is causing a skill issue.</param>
         /// <param name="arguments">The arguments of the MessageType. See <see cref="ActionResponse.ActionResponse(MessageType, IAction, string, object[])"/> for documentation on what MessageTypes require what arguments.</param>
         /// <returns>The string to display to the user.</returns>
-        public static string Generate(MessageType type, IAction action, string paramName, params object[] arguments)
+        public static string Generate(MessageType type, IScriptComponent action, string paramName, params object[] arguments)
         {
             switch (type)
             {
@@ -72,48 +72,34 @@
                         sb.Append($" {chars[0]}{arg.ArgumentName}{chars[1]}");
                     }
 
-                    return ErrorGen.Get(116, action.Name, action.Name + StringBuilderPool.Pool.ToStringReturn(sb));
+                    return ErrorGen.Get(ErrorCode.InvalidActionUsage, action.Name, action.Name + StringBuilderPool.Pool.ToStringReturn(sb));
 
                 case MessageType.InvalidUsage:
-                    return ErrorGen.Get(117, action.Name);
-
-                case MessageType.InvalidOption when arguments[0] is string input && arguments[1] is string options:
-                    return ErrorGen.Get(118, input, paramName, action.Name, options);
+                    return ErrorGen.Get(ErrorCode.LEGACY_InvalidActionUsage, action.Name);
 
                 case MessageType.NotANumber when arguments[0] is not null:
-                    return ErrorGen.Get(119, arguments[0], paramName, action.Name);
+                    return ErrorGen.Get(ErrorCode.ParameterError_Number, arguments[0], paramName, action.Name);
 
                 case MessageType.NotANumberOrCondition when arguments[0] is not null && arguments[1] is MathResult result:
-                    return ErrorGen.Get(120, paramName, action.Name, arguments[0], result.Exception.GetType().Name, result.Message);
+                    return ErrorGen.Get(ErrorCode.ParameterError_Condition, paramName, action.Name, arguments[0], result.Exception.GetType().Name, result.Message);
 
                 case MessageType.LessThanZeroNumber when arguments[0] is not null:
-                    return ErrorGen.Get(121, arguments[0], paramName, action.Name);
+                    return ErrorGen.Get(ErrorCode.ParameterError_LessThanZeroNumber, arguments[0], paramName, action.Name);
 
                 case MessageType.InvalidRole when arguments[0] is not null:
-                    return ErrorGen.Get(122, paramName, action.Name, arguments[0]);
+                    return ErrorGen.Get(ErrorCode.ParameterError_RoleType, paramName, action.Name, arguments[0]);
 
                 case MessageType.NoPlayersFound:
-                    return ErrorGen.Get(123, paramName);
+                    return ErrorGen.Get(ErrorCode.ParameterError_Players, paramName);
 
                 case MessageType.NoRoomsFound:
-                    return ErrorGen.Get(124, arguments[0], paramName);
+                    return ErrorGen.Get(ErrorCode.ParameterError_Rooms, arguments[0], paramName);
 
                 case MessageType.CassieCaptionNoAnnouncement:
-                    return ErrorGen.Get(125);
+                    return ErrorGen.Get(ErrorCode.ParameterError_CassieNoAnnc);
             }
 
-            return ErrorGen.Get(126);
-        }
-
-        /// <summary>
-        /// Returns a string showing the amount of arguments required, given the arguments.
-        /// </summary>
-        /// <param name="name">The name of the action or variable.</param>
-        /// <param name="args">The required arguments.</param>
-        /// <returns>Formatted string to show to end-user.</returns>
-        public static string VariableArgCount(string name, params string[] args)
-        {
-            return ErrorGen.Get(130, name, args.Length, string.Join(", ", args));
+            return ErrorGen.Get(ErrorCode.UnknownError);
         }
 
         /// <summary>

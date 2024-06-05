@@ -8,8 +8,8 @@
     using ScriptedEvents.API.Enums;
     using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Interfaces;
+    using ScriptedEvents.API.Modules;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
     using UnityEngine.Networking;
 
     public class HttpGetAction : IHelpInfo, ITimingAction, ILongDescription
@@ -21,7 +21,10 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Yielding;
@@ -46,14 +49,8 @@ These variables are created as per-script variables, meaning they can only be us
         /// <inheritdoc/>
         public float? Execute(Script script, out ActionResponse message)
         {
-            if (Arguments.Length < 1)
-            {
-                message = new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
-                return null;
-            }
-
             string coroutineKey = $"HTTPGET_COROUTINE_{DateTime.UtcNow.Ticks}";
-            CoroutineHandle handle = Timing.RunCoroutine(InternalSendHTTP(script, VariableSystem.ReplaceVariable(Arguments[0], script)), coroutineKey);
+            CoroutineHandle handle = Timing.RunCoroutine(InternalSendHTTP(script, VariableSystemV2.ReplaceVariable(RawArguments[0], script)), coroutineKey);
             CoroutineHelper.AddCoroutine("HTTPGET", handle, script);
             message = new(true);
             return Timing.WaitUntilDone(handle);

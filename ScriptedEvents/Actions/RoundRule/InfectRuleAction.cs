@@ -5,10 +5,8 @@
     using PlayerRoles;
 
     using ScriptedEvents.API.Enums;
-    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Interfaces;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
     public class InfectRuleAction : IScriptAction, IHelpInfo
     {
@@ -19,7 +17,10 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.RoundRule;
@@ -38,15 +39,13 @@
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 3) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
+            RoleTypeId oldRole = (RoleTypeId)Arguments[0];
+            RoleTypeId newRole = (RoleTypeId)Arguments[1];
 
-            if (!VariableSystem.TryParse(Arguments[0], out RoleTypeId oldRole, script))
-                return new(MessageType.InvalidRole, this, "oldrole", Arguments[0]);
+            bool movePlayer = false;
 
-            if (!VariableSystem.TryParse(Arguments[1], out RoleTypeId newRole, script))
-                return new(MessageType.InvalidRole, this, "newrole", Arguments[1]);
-
-            bool movePlayer = Arguments[2].AsBool();
+            if (Arguments.Length > 2)
+                movePlayer = (bool)Arguments[2];
 
             MainPlugin.Handlers.InfectionRules.RemoveAll(rule => rule.OldRole == oldRole);
             MainPlugin.Handlers.InfectionRules.Add(new(oldRole, newRole, movePlayer));

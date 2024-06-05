@@ -7,9 +7,9 @@
     using Respawning;
 
     using ScriptedEvents.API.Enums;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Interfaces;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
     public class TicketAction : IScriptAction, IHelpInfo
     {
@@ -20,7 +20,10 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Round;
@@ -31,20 +34,19 @@
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("mode", typeof(string), "The action (ADD, REMOVE, SET).", true),
+            new OptionsArgument("mode", true,
+                new("ADD", "Adds tickets to a team."),
+                new("REMOVE", "Removes tickets from a team."),
+                new("SET", "Set's a team's ticket amount.")),
             new Argument("team", typeof(SpawnableTeamType), "The spawn team (ChaosInsurgency or NineTailedFox).", true),
-            new Argument("amount", typeof(int), "The amount to apply. Variables are supported.", true),
+            new Argument("amount", typeof(int), "The amount to apply.", true),
         };
 
+        /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 3) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
-
-            if (!VariableSystem.TryParse<SpawnableTeamType>(Arguments[1], out SpawnableTeamType team, script))
-                return new(false, "Invalid spawnable role provided. Must be ChaosInsurgency or NineTailedFox.");
-
-            if (!VariableSystem.TryParse(Arguments[2], out float amount, script))
-                return new(MessageType.NotANumber, this, "amount", Arguments[1]);
+            SpawnableTeamType team = (SpawnableTeamType)Arguments[1];
+            float amount = (float)Arguments[2];
 
             switch (Arguments[0].ToUpper())
             {
@@ -66,8 +68,6 @@
                     }
 
                     break;
-                default:
-                    return new(MessageType.InvalidOption, this, "mode", "ADD/REMOVE/SET");
             }
 
             return new(true);

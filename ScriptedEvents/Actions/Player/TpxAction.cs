@@ -6,10 +6,8 @@
     using Exiled.API.Features.Roles;
 
     using ScriptedEvents.API.Enums;
-    using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Interfaces;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
     using UnityEngine;
 
@@ -22,7 +20,10 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Player;
@@ -33,7 +34,7 @@
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("players", typeof(Player[]), "The players to teleport", true),
+            new Argument("players", typeof(PlayerCollection), "The players to teleport", true),
             new Argument("X", typeof(float), "The X-coordinate to teleport to.", true),
             new Argument("Y", typeof(float), "The Y-coordinate to teleport to.", true),
             new Argument("Z", typeof(float), "The Z-coordinate to teleport to.", true),
@@ -42,19 +43,10 @@
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 4) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
-
-            if (!ScriptHelper.TryGetPlayers(Arguments[0], null, out PlayerCollection players, script))
-                return new(false, players.Message);
-
-            if (!VariableSystem.TryParse(Arguments[1], out float x, script))
-                return new(MessageType.NotANumber, this, "X", Arguments[1]);
-
-            if (!VariableSystem.TryParse(Arguments[2], out float y, script))
-                return new(MessageType.NotANumber, this, "Y", Arguments[2]);
-
-            if (!VariableSystem.TryParse(Arguments[3], out float z, script))
-                return new(MessageType.NotANumber, this, "Z", Arguments[3]);
+            PlayerCollection players = (PlayerCollection)Arguments[0];
+            float x = (float)Arguments[1];
+            float y = (float)Arguments[2];
+            float z = (float)Arguments[3];
 
             Vector3 vz = new(x, y, z);
 

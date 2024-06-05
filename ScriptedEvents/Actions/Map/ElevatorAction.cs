@@ -1,12 +1,11 @@
 ﻿namespace ScriptedEvents.Actions
 {
     using System;
-    using System.Collections.Generic;
+
     using Exiled.API.Enums;
     using Exiled.API.Features;
-    using Exiled.API.Features.Doors;
     using ScriptedEvents.API.Enums;
-    using ScriptedEvents.API.Features;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Interfaces;
     using ScriptedEvents.Structures;
 
@@ -19,7 +18,10 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Map;
@@ -30,19 +32,19 @@
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("mode", typeof(string), "The mode (SEND/LOCK/UNLOCK).", true),
-            new Argument("elevators", typeof(List<>), "The elevators to affect.", true),
+            new OptionsArgument("mode", true,
+                new("SEND", "Moves the elevator."),
+                new("LOCK", "Locks the elevator, preventing it from being used."),
+                new("UNLOCK", "Unlocks the previously-locked elevator, allowing it to be used again.")),
+            new Argument("elevators", typeof(Lift[]), "The elevators to affect.", true),
         };
 
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 2) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
+            Lift[] lifts = (Lift[])Arguments[1];
 
-            if (!ScriptHelper.TryGetLifts(Arguments[1], out Lift[] lifts, script))
-                return new(false, "Invalid lift(s) provided!");
-
-            Action<Lift> action;
+            Action<Lift> action = null;
             switch (Arguments[0].ToUpper())
             {
                 case "SEND":
@@ -53,9 +55,7 @@
                     action = (lift) =>
                     {
                         if (lift.IsLocked)
-                        {
                             return;
-                        }
 
                         foreach (var door in lift.Doors)
                         {
@@ -82,9 +82,6 @@
                         }
                     };
                     break;
-
-                default:
-                    return new(MessageType.InvalidOption, this, "mode", Arguments[0], "SEND/LOCK/UNLOCK");
             }
 
             foreach (Lift lift in lifts)

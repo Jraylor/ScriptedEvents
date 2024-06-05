@@ -6,8 +6,9 @@
     using CommandSystem;
 
     using Exiled.Permissions.Extensions;
-
+    using ScriptedEvents.API.Enums;
     using ScriptedEvents.API.Features;
+    using ScriptedEvents.API.Modules;
 
     [CommandHandler(typeof(RemoteAdminCommandHandler))]
     public class StopScript : ICommand
@@ -36,15 +37,15 @@
                 return false;
             }
 
-            if (!Directory.Exists(ScriptHelper.ScriptPath))
+            if (!Directory.Exists(ScriptModule.BasePath))
             {
-                response = ErrorGen.Get(127);
+                response = ErrorGen.Get(ErrorCode.IOMissing);
                 return false;
             }
 
             string arg0 = arguments.At(0);
 
-            int amount = ScriptHelper.StopScripts(arg0);
+            int amount = MainPlugin.ScriptModule.StopScripts(arg0);
             if (amount == 0)
             {
                 response = "Done! No scripts were stopped.";

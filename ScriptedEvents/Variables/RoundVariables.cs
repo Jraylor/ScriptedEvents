@@ -1,7 +1,11 @@
 ﻿namespace ScriptedEvents.Variables.Round
 {
+    using System;
 #pragma warning disable SA1402 // File may only contain a single type
+
     using Exiled.API.Features;
+
+    using ScriptedEvents.Structures;
     using ScriptedEvents.Variables.Interfaces;
 
     public class RoundVariables : IVariableGroup
@@ -13,13 +17,8 @@
         public IVariable[] Variables { get; } = new IVariable[]
         {
             new UptimeRound(),
-            new RoundEnded(),
-            new RoundInProgress(),
-            new RoundStarted(),
-
-            new RoundMinutes(),
-            new RoundSeconds(),
-            new LobbyTime(),
+            new LobbyLock(),
+            new GeneralRound(),
         };
     }
 
@@ -35,93 +34,65 @@
         public float Value => Round.UptimeRounds;
     }
 
-    public class RoundEnded : IBoolVariable
+    public class LobbyLock : IBoolVariable
     {
         /// <inheritdoc/>
-        public string Name => "{ROUNDENDED}";
+        public string Name => "{LOBBYLOCKED}";
+
+        public string ReversedName => "{!LOBBYLOCKED}";
 
         /// <inheritdoc/>
-        public string ReversedName => "{!ROUNDENDED}";
+        public string Description => "Returns the lobbylock setting status.";
 
         /// <inheritdoc/>
-        public string Description => "Whether or not the round has ended.";
-
-        /// <inheritdoc/>
-        public bool Value => Round.IsEnded;
-    }
-
-    public class RoundInProgress : IBoolVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{ROUNDINPROGRESS}";
-
-        /// <inheritdoc/>
-        public string ReversedName => "{!ROUNDINPROGRESS}";
-
-        /// <inheritdoc/>
-        public string Description => "Whether or not the round is in progress.";
-
-        /// <inheritdoc/>
-        public bool Value => Round.InProgress;
-    }
-
-    public class RoundStarted : IBoolVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{ROUNDSTARTED}";
-
-        /// <inheritdoc/>
-        public string ReversedName => "{!ROUNDSTARTED}";
-
-        /// <inheritdoc/>
-        public string Description => "Whether or not the round has started.";
-
-        /// <inheritdoc/>
-        public bool Value => Round.IsStarted;
-    }
-
-    public class RoundMinutes : IFloatVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{ROUNDMINUTES}";
-
-        /// <inheritdoc/>
-        public string Description => "The amount of elapsed round time, in minutes.";
-
-        /// <inheritdoc/>
-        public float Value => (float)Round.ElapsedTime.TotalMinutes;
-    }
-
-    public class RoundSeconds : IFloatVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{ROUNDSECONDS}";
-
-        /// <inheritdoc/>
-        public string Description => "The amount of elapsed round time, in seconds.";
-
-        /// <inheritdoc/>
-        public float Value => (float)Round.ElapsedTime.TotalSeconds;
-    }
-
-    public class LobbyTime : IFloatVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{LOBBYTIME}";
-
-        /// <inheritdoc/>
-        public string Description => "The amount of time remaining before the round starts. -1 if round already started.";
-
-        /// <inheritdoc/>
-        public float Value
+        public bool Value
         {
             get
             {
-                if (Round.IsStarted)
-                    return -1f;
-
-                return Round.LobbyWaitingTime;
+                return Round.IsLobbyLocked;
             }
         }
+    }
+
+    public class GeneralRound : IBoolVariable, IArgumentVariable
+    {
+        /// <inheritdoc/>
+        public string Name => "{ROUND}";
+
+        public string ReversedName => "{!ROUND}";
+
+        /// <inheritdoc/>
+        public string Description => "All-in-one variable for round related information.";
+
+        public Argument[] ExpectedArguments => new[]
+        {
+            new OptionsArgument("mode", true,
+                new("LOCKED", "Retruns the roundlock status."),
+                new("STARTED", "TRUE if round has started."),
+                new("INPROGRESS", "TRUE if round is in progress, neither started or ended."),
+                new("ENDED", "TRUE if round has ended.")),
+        };
+
+        /// <inheritdoc/>
+        public bool Value
+        {
+            get
+            {
+                string mode = (string)Arguments[0];
+
+                return mode.ToUpper() switch
+                {
+                    "LOCKED" => Round.IsLocked,
+                    "STARTED" => Round.IsStarted,
+                    "INPROGRESS" => Round.InProgress,
+                    "ENDED" => Round.IsEnded,
+                    _ => throw new ArgumentException("No mode provided")
+                };
+            }
+        }
+
+        public string[] RawArguments { get; set; }
+
+        public object[] Arguments { get; set; }
     }
 }

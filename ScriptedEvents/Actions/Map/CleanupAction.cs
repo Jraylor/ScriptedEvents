@@ -1,18 +1,18 @@
 ﻿namespace ScriptedEvents.Actions
 {
     using System;
-    using System.Collections.Generic;
     using System.Linq;
-    using Exiled.API.Enums;
+
     using Exiled.API.Features;
-    using Exiled.API.Features.Doors;
     using Exiled.API.Features.Pickups;
+
     using PlayerRoles;
+
     using ScriptedEvents.API.Enums;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Interfaces;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
     public class CleanupAction : IScriptAction, IHelpInfo
     {
@@ -23,7 +23,10 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Map;
@@ -34,22 +37,22 @@
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("mode", typeof(string), "The mode (ITEMS, RAGDOLLS).", true),
+            new OptionsArgument("mode", true,
+                new("ITEMS", "Clean items."),
+                new("RAGDOLLS", "Clean ragdolls.")),
             new Argument("filter", typeof(string), "Optionally, an ItemType/RoleTypeId of items/ragdolls to remove.", false),
         };
 
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 1) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
-
             switch (Arguments[0].ToUpper())
             {
                 case "ITEMS":
                     ItemType type = ItemType.None;
                     if (Arguments.Length > 1)
                     {
-                        if (!VariableSystem.TryParse(Arguments[1], out type, script))
+                        if (!SEParser.TryParse((string)Arguments[1], out type, script))
                             return new(false, "Invalid ItemType provided."); // Todo: Use error code
                     }
 
@@ -63,7 +66,7 @@
                     RoleTypeId rType = RoleTypeId.None;
                     if (Arguments.Length > 1)
                     {
-                        if (!VariableSystem.TryParse(Arguments[1], out rType, script))
+                        if (!SEParser.TryParse((string)Arguments[1], out rType, script))
                             return new(MessageType.InvalidRole, this, "filter", Arguments[1]);
                     }
 
@@ -73,8 +76,6 @@
                     }
 
                     break;
-                default:
-                    return new(MessageType.InvalidOption, this, "mode", "ITEMS/RAGDOLLS");
             }
 
             return new(true);

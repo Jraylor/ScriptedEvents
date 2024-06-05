@@ -4,11 +4,14 @@
     using System.Collections.Generic;
     using System.IO;
     using System.Text;
+
     using CommandSystem;
-    using Exiled.API.Features;
+
     using Exiled.API.Features.Pools;
     using Exiled.Permissions.Extensions;
+    using ScriptedEvents.API.Enums;
     using ScriptedEvents.API.Features;
+    using ScriptedEvents.API.Modules;
 
     [CommandHandler(typeof(RemoteAdminCommandHandler))]
     public class ListScripts : ICommand
@@ -31,13 +34,13 @@
                 return false;
             }
 
-            if (!Directory.Exists(ScriptHelper.ScriptPath))
+            if (!Directory.Exists(ScriptModule.BasePath))
             {
-                response = ErrorGen.Get(127);
+                response = ErrorGen.Get(ErrorCode.IOMissing);
                 return false;
             }
 
-            List<Script> scripts = ScriptHelper.ListScripts(sender);
+            List<Script> scripts = MainPlugin.ScriptModule.ListScripts(sender);
             StringBuilder bldr = StringBuilderPool.Pool.Get();
 
             int i = 0;

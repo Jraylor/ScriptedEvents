@@ -1,14 +1,12 @@
 ﻿namespace ScriptedEvents.Actions
 {
     using System;
-    using System.Linq;
 
-    using ScriptedEvents.API.Constants;
     using ScriptedEvents.API.Enums;
     using ScriptedEvents.API.Interfaces;
     using ScriptedEvents.Structures;
 
-    public class GotoAction : IScriptAction, ILogicAction, IHelpInfo, ILongDescription
+    public class GotoAction : IScriptAction, ILogicAction, IHelpInfo
     {
         /// <inheritdoc/>
         public string Name => "GOTO";
@@ -17,36 +15,41 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Logic;
 
         /// <inheritdoc/>
-        public string Description => "Moves to the provided label.";
+        public string Description => "Moves to the provided label. Use 'START' to go to the start of the script.";
 
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("label", typeof(string), "The label to move to, or keyword (START/NEXT/STOP)", false),
+            new Argument("label", typeof(string), "The label to move to.", true),
         };
-
-        /// <inheritdoc/>
-        public string LongDescription => ConstMessages.GotoInput;
 
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 1) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
+            string label = (string)Arguments[0];
 
-            if (!script.Jump(Arguments.ElementAt(0)))
+            if (script.JumpToLabel(label))
             {
-                if (Arguments[0].ToUpper() == "STOP")
-                    return new(true, flags: ActionFlags.StopEventExecution);
-                return new(false, "Invalid line or label provided!");
+                return new(true);
             }
 
-            return new(true);
+            int prevLine = script.CurrentLine;
+            if (script.JumpToFunctionLabel(label))
+            {
+                script.JumpLines.Add(prevLine);
+                return new(true);
+            }
+
+            return new(false, "Invalid label provided.");
         }
     }
 }

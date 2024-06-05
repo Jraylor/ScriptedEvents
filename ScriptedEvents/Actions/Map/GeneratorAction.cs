@@ -1,9 +1,11 @@
 ﻿namespace ScriptedEvents.Actions
 {
     using System;
-    using System.Collections.Generic;
+
     using Exiled.API.Features;
+
     using ScriptedEvents.API.Enums;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Interfaces;
     using ScriptedEvents.Structures;
 
@@ -16,25 +18,33 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Map;
 
         /// <inheritdoc/>
-        public string Description => "Modifies genrators.";
+        public string Description => "Modifies all genrators.";
 
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("mode", typeof(string), "The mode to use. Valid options: OPEN, CLOSE, LOCK, UNLOCK, OVERCHARGE, ACTIVATE, DEACTIVATE", true),
+            new OptionsArgument("mode", true,
+                new("OPEN", "Opens all generators."),
+                new("CLOSE", "Closes all generators."),
+                new("LOCK", "Locks all generators, requiring a keycard to use."),
+                new("UNLOCK", "Unlocks all generators, no longer requiring a keycard to use."),
+                new("OVERCHARGE", "Engages all generators, causing an overcharge."),
+                new("ACTIVATE", "Begins activating all generators."),
+                new("DEACTIVATE", "Deactivates all generators.")),
         };
 
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 1) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
-
             foreach (Generator generator in Generator.List)
             {
                 switch (Arguments[0].ToUpper())
@@ -60,8 +70,6 @@
                     case "DEACTIVATE":
                         generator.IsActivating = false;
                         break;
-                    default:
-                        return new(MessageType.InvalidOption, this, "mode", Arguments[0], "Valid options: OPEN, CLOSE, LOCK, UNLOCK, OVERCHARGE, ACTIVATE, DEACTIVATE");
                 }
             }
 

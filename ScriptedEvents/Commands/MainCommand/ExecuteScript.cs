@@ -2,13 +2,16 @@
 {
     using System;
     using System.IO;
+    using System.Linq;
+
     using CommandSystem;
+
     using Exiled.API.Features;
     using Exiled.Permissions.Extensions;
     using RemoteAdmin;
 
-    using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Features.Exceptions;
+    using ScriptedEvents.API.Modules;
 
     [CommandHandler(typeof(RemoteAdminCommandHandler))]
     public class ExecuteScript : ICommand
@@ -37,7 +40,7 @@
                 return false;
             }
 
-            if (!Directory.Exists(ScriptHelper.ScriptPath))
+            if (!Directory.Exists(ScriptModule.BasePath))
             {
                 response = "Critical error: Missing script path. Please reload plugin.";
                 return false;
@@ -48,7 +51,7 @@
 
             try
             {
-                scr = ScriptHelper.ReadScript(arg0, sender);
+                scr = MainPlugin.ScriptModule.ReadScript(arg0, sender);
 
                 if (!sender.CheckPermission(scr.ExecutePermission))
                 {
@@ -61,9 +64,20 @@
                     scr.AddPlayerVariable("{SENDER}", "The player who executed the script.", new[] { plr });
                 }
 
-                ScriptHelper.RunScript(scr);
+                for (int i = 1; i < 20; i++)
+                {
+                    if (arguments.Count <= i)
+                        break;
 
-                response = $"Executed {scr.ScriptName} successfully.";
+                    scr.DebugLog($"Assigned {{ARG{i}}} variable to executed script.");
+                    scr.AddVariable($"{{ARG{i}}}", $"Argument #{i} of the command.", arguments.At(i).ToString());
+                }
+
+                scr.AddVariable("{ARGS}", "All arguments of the command, separated by spaces.", string.Join(" ", arguments.Skip(1)));
+
+                MainPlugin.ScriptModule.RunScript(scr);
+
+                response = $"Script '{scr.ScriptName}' executed successfully.";
             }
             catch (DisabledScriptException)
             {

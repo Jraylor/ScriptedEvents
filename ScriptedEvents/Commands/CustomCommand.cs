@@ -3,12 +3,15 @@
     using System;
     using System.Collections.Generic;
     using System.IO;
+
     using CommandSystem;
+
     using Exiled.API.Features;
     using Exiled.Permissions.Extensions;
+
     using RemoteAdmin;
+
     using ScriptedEvents.API.Enums;
-    using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Features.Exceptions;
 
     public class CustomCommand : ICommand
@@ -100,7 +103,7 @@
             {
                 try
                 {
-                    Script body = ScriptHelper.ReadScript(scr, sender);
+                    Script body = MainPlugin.ScriptModule.ReadScript(scr, sender);
 
                     // Override default script context for custom commands
                     switch (Type)
@@ -121,17 +124,17 @@
                         body.AddPlayerVariable("{SENDER}", "The player who executed the script.", new[] { plr });
                     }
 
-                    for (int i = 0; i < 20; i++)
+                    for (int i = 1; i < 20; i++)
                     {
-                        if (arguments.Count < i + 1)
+                        if (arguments.Count < i)
                             break;
 
-                        body.AddVariable($"{{ARG{i + 1}}}", $"Argument #{i + 1} of the command.", arguments.At(i).ToString());
+                        body.AddVariable($"{{ARG{i}}}", $"Argument #{i} of the command.", arguments.At(i - 1).ToString());
                     }
 
                     body.AddVariable("{ARGS}", "All arguments of the command, separated by spaces.", string.Join(" ", arguments));
 
-                    ScriptHelper.RunScript(body);
+                    MainPlugin.ScriptModule.RunScript(body);
                     success++;
                 }
                 catch (DisabledScriptException)

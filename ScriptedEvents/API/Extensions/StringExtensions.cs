@@ -1,5 +1,15 @@
 ﻿namespace ScriptedEvents.API.Extensions
 {
+    using System.Linq;
+    using System.Text;
+
+    using Exiled.API.Features.Pools;
+    using ScriptedEvents.API.Modules;
+    using ScriptedEvents.Structures;
+
+    /// <summary>
+    /// Contains useful extensions.
+    /// </summary>
     public static class StringExtensions
     {
         /// <summary>
@@ -29,20 +39,48 @@
             return newString;
         }
 
+        public static bool IsBool(this string input, out bool value, Script source = null)
+        {
+            if (input is null)
+            {
+                value = false;
+                return false;
+            }
+            else if (bool.TryParse(input, out bool r))
+            {
+                value = r;
+                return true;
+            }
+            else if (input.ToUpper() is "YES" or "Y" or "T")
+            {
+                value = true;
+                return true;
+            }
+            else if (input.ToUpper() is "NO" or "N" or "F")
+            {
+                value = false;
+                return true;
+            }
+
+            if (source is not null && VariableSystemV2.TryGetVariable(input, source, out VariableResult result) && result.ProcessorSuccess)
+            {
+                return IsBool(result.String(), out value, source);
+            }
+
+            value = false;
+            return false;
+        }
+
         /// <summary>
         /// Converts a string input to a boolean.
         /// </summary>
         /// <param name="input">The input string.</param>
+        /// <param name="source">The script source.</param>
         /// <returns>The boolean.</returns>
-        public static bool AsBool(this string input)
+        public static bool AsBool(this string input, Script source = null)
         {
-            if (input is null)
-                return false;
-
-            if (bool.TryParse(input, out bool r))
-                return r;
-
-            return input.ToUpper() is "Y" or "YES";
+            IsBool(input, out bool v, source);
+            return v;
         }
 
         /// <summary>
@@ -53,5 +91,39 @@
         /// <param name="newValue">The value to replace it with.</param>
         /// <returns>The modified string.</returns>
         public static string Replace(this string input, string oldValue, object newValue) => input.Replace(oldValue, newValue.ToString());
+
+        public static string String(this object input) => input is string str ? str : input.ToString();
+
+        /// <summary>
+        /// Converts an object to a string and uppercases it.
+        /// </summary>
+        /// <param name="input">The input object.</param>
+        /// <returns>The new string.</returns>
+        public static string ToUpper(this object input) => input.String().ToUpper();
+
+        /// <summary>
+        /// Joins object parameters into a string message.
+        /// </summary>
+        /// <param name="param">The parameters.</param>
+        /// <param name="skipCount">Amount of parameters to skip.</param>
+        /// <param name="sep">The separator string.</param>
+        /// <returns>The new string.</returns>
+        public static string JoinMessage(this object[] param, int skipCount = 0, string sep = " ")
+        {
+            StringBuilder sb = StringBuilderPool.Pool.Get();
+            var list = param.Skip(skipCount);
+            if (list.Count() == 0) return string.Empty;
+
+            foreach (object obj in list)
+            {
+                if (obj is string s)
+                    sb.Append(s + sep);
+                else
+                    sb.Append(obj.ToString() + sep);
+            }
+
+            string str = StringBuilderPool.Pool.ToStringReturn(sb);
+            return str.Substring(0, str.Length - sep.Length);
+        }
     }
 }

@@ -2,7 +2,9 @@
 {
     using System;
     using System.Linq;
+
     using CommandSystem;
+
     using ScriptedEvents.Actions;
     using ScriptedEvents.API.Enums;
     using ScriptedEvents.Structures;
@@ -22,29 +24,16 @@
         /// <inheritdoc/>
         public bool Execute(ArraySegment<string> arguments, ICommandSender sender, out string response)
         {
-            if (arguments.Count < 1)
-            {
-                response = "Missing the API to get the help of. Must be 'LIST', 'LISTVAR', or the name of an action or variable.";
-                return false;
-            }
-
-            string name = arguments.ElementAt(0);
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                response = "Missing the API to get the help of. Must be 'LIST', 'LISTVAR', or the name of an action or variable.";
-                return false;
-            }
-
             HelpAction help = new HelpAction();
-            help.Arguments = new[] { name };
+            help.Arguments = arguments.ToArray();
 
             // Fill out mock script info
             Script mockScript = new Script();
             mockScript.Context = ExecuteContext.ServerConsole;
             mockScript.Sender = sender;
-            mockScript.RawText = $"HELP {name}";
+            mockScript.RawText = $"HELP {string.Join(" ", arguments)}";
             mockScript.ScriptName = "HELP COMMAND EXECUTION";
-            mockScript.Flags.Add("HELPCOMMANDEXECUTION");
+            mockScript.AddFlag("HELPCOMMANDEXECUTION");
 
             ActionResponse actionResponse = help.Execute(mockScript);
 

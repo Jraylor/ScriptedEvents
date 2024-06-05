@@ -1,7 +1,6 @@
 ﻿namespace ScriptedEvents.Commands.MainCommand
 {
     using System;
-    using System.Collections.Generic;
     using System.Linq;
 
     using CommandSystem;
@@ -10,7 +9,6 @@
     using ScriptedEvents.API.Enums;
     using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Interfaces;
-    using ScriptedEvents.Structures;
 
     [CommandHandler(typeof(RemoteAdminCommandHandler))]
     public class Action : ICommand
@@ -46,7 +44,7 @@
                 return false;
             }
 
-            if (!ScriptHelper.TryGetActionType(actionName.ToUpper(), out Type argType))
+            if (!MainPlugin.ScriptModule.TryGetActionType(actionName.ToUpper(), out Type argType))
             {
                 response = "Invalid argument name provided.";
                 return false;
@@ -72,7 +70,7 @@
                 return false;
             }
 
-            scriptAction.Arguments = arguments.Skip(1).ToArray();
+            scriptAction.RawArguments = arguments.Skip(1).ToArray();
 
             // Fill out mock script info
             Script mockScript = new()
@@ -81,19 +79,27 @@
                 Sender = sender,
                 RawText = string.Join(" ", arguments),
                 ScriptName = "ACTION COMMAND EXECUTION",
+                Actions = new[] { scriptAction },
             };
 
             if (MainPlugin.Configs.Debug)
-                mockScript.Flags.Add("DEBUG");
+                mockScript.AddFlag("DEBUG");
 
-            mockScript.Flags.Add("ACTIONCOMMANDEXECUTION");
+            mockScript.AddFlag("ACTIONCOMMANDEXECUTION");
 
-            ActionResponse actionResponse = scriptAction.Execute(mockScript);
+            try
+            {
+                MainPlugin.ScriptModule.RunScript(mockScript);
+            }
+            catch (Exception ex)
+            {
+                response = $"Error while running action: {ex.Message}";
+                mockScript.Dispose();
+                return false;
+            }
 
-            response = string.IsNullOrWhiteSpace(actionResponse.Message) ? "Done" : actionResponse.Message;
-
-            mockScript.Dispose();
-            return actionResponse.Success;
+            response = "Done";
+            return true;
         }
     }
 }

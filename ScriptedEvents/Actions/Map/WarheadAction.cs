@@ -5,10 +5,11 @@
     using Exiled.API.Features;
 
     using ScriptedEvents.API.Enums;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Interfaces;
     using ScriptedEvents.Structures;
 
-    public class WarheadAction : IScriptAction, IHelpInfo, ILongDescription
+    public class WarheadAction : IScriptAction, IHelpInfo
     {
         /// <inheritdoc/>
         public string Name => "WARHEAD";
@@ -17,7 +18,10 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Map;
@@ -28,27 +32,23 @@
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("action", typeof(string), "The action to run.", true),
+            new OptionsArgument("action", true,
+                new("START", "Starts the warhead."),
+                new("STOP", "Stops the warhead."),
+                new("LOCK", "Prevents the warhead from being enabled."),
+                new("UNLOCK", "Allows the warhead to be enabled again."),
+                new("DETONATE", "Immediately detonates the warhead."),
+                new("BLASTDOORS", "Closes the surface blast doors on top of the elevators. Doesn't start or detonate the warhead."),
+                new("ARM", "Arms the warhead (switches lever to ON)."),
+                new("DISARM", "Disarms the warhead (switches lever to OFF)."),
+                new("OPEN", "Opens the keycard panel on the surface."),
+                new("CLOSE", "Closes the keycard panel on the surface."),
+                new("SHAKE", "Imitates an explosion without killing anyone.")),
         };
-
-        /// <inheritdoc/>
-        public string LongDescription { get; } = @$"Valid options:
-- START - Starts the warhead (even if it is disarmed or on cooldown)
-- STOP - Stops the warhead
-- LOCK - Prevents the warhead from being enabled
-- UNLOCK Allows the warhead to be enabled again
-- DETONATE - Detonates the warhead immediately
-- BLASTDOORS - Closes the surface blast doors, doesn't start or detonate the warhead
-- ARM - Arms the warhead (switches lever to ON)
-- DISARM - Disarms the warhead (switches lever to OFF)
-- OPEN - Opens the keycard panel on the surface
-- CLOSE - Closes the keycard panel on the surface";
 
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 1) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
-
             switch (Arguments[0].ToUpper())
             {
                 case "START":
@@ -83,8 +83,14 @@
                 case "BLASTDOORS":
                     Warhead.CloseBlastDoors();
                     break;
-                default:
-                    return new(MessageType.InvalidOption, this, "action", Arguments[0], "START/STOP/DETONATE/LOCK/UNLOCK/BLASTDOORS/ARM/DISARM/OPEN/CLOSE");
+                case "STARTDETONATION":
+                    Warhead.DetonationTimer = 10;
+                    Warhead.Controller.InstantPrepare();
+                    Warhead.Controller.StartDetonation(false, true);
+                    break;
+                case "SHAKE":
+                    Warhead.Shake();
+                    break;
             }
 
             return new(true);

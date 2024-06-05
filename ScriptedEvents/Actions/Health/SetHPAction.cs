@@ -5,10 +5,8 @@
     using Exiled.API.Features;
 
     using ScriptedEvents.API.Enums;
-    using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Interfaces;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
     public class SetHPAction : IScriptAction, IHelpInfo
     {
@@ -22,28 +20,27 @@
         public ActionSubgroup Subgroup => ActionSubgroup.Health;
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
 
         /// <inheritdoc/>
-        public string Description => "Set the HP of the targeted players.";
+        public object[] Arguments { get; set; }
+
+        /// <inheritdoc/>
+        public string Description => "Modifies HP of the targeted players.";
 
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("players", typeof(Player[]), "The players to affect.", true),
-            new Argument("health", typeof(float), "The amount of health to set the player to. Variables are supported.", true),
+            new Argument("players", typeof(PlayerCollection), "The players to affect.", true),
+            new Argument("health", typeof(float), "The amount of health to set the player to.", true),
         };
 
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 2) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
+            PlayerCollection plys = (PlayerCollection)Arguments[0];
+            float hp = (float)Arguments[1];
 
-            if (!ScriptHelper.TryGetPlayers(Arguments[0], null, out PlayerCollection plys, script))
-                return new(false, plys.Message);
-
-            if (!VariableSystem.TryParse(Arguments[1], out float hp, script))
-                return new(MessageType.NotANumber, this, "health", Arguments[1]);
             if (hp < 0)
                 return new(MessageType.LessThanZeroNumber, this, "health", hp);
 

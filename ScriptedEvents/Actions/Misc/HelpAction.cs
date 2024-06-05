@@ -13,11 +13,13 @@
 
     using ScriptedEvents.Actions.Samples;
     using ScriptedEvents.Actions.Samples.Interfaces;
+    using ScriptedEvents.API.Constants;
     using ScriptedEvents.API.Enums;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Interfaces;
+    using ScriptedEvents.API.Modules;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
     using ScriptedEvents.Variables.Interfaces;
 
     public class HelpAction : IScriptAction, IHelpInfo
@@ -29,7 +31,10 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Misc;
@@ -40,7 +45,7 @@
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("input", typeof(string), "The name of the action/variable, \"LIST\" for all actions, or \"LISTVAR\" for all variables. Case-sensitive.", true),
+            new Argument("input", typeof(string), "The name of the action/variable, \"LIST\" for all actions, or \"LISTVAR\" for all variables. Case-sensitive.", false),
         };
 
         /// <summary>
@@ -51,22 +56,77 @@
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 1) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
+            if (Arguments.Length < 1)
+                Arguments = new[] { "USE-WELCOME-TEXT" };
 
-            IsFile = false;
+            if (Arguments[0] is "GENERATE")
+            {
+                if (script.Context != ExecuteContext.ServerConsole)
+                    return new(false, "The 'GENERATE' subcommand must be executed from the server console.");
+                bool generatorResult = API.Features.ScriptHelpGenerator.Generator.GenerateConfig(out string message);
+                return new(generatorResult, message);
+            }
+
+            if (Arguments[0] is "GDONE")
+            {
+                if (script.Context != ExecuteContext.ServerConsole)
+                    return new(false, "The 'GDONE' subcommand must be executed from the server console.");
+                bool generatorResult = API.Features.ScriptHelpGenerator.Generator.CreateDocumentation(out string message);
+                return new(generatorResult, message);
+            }
+
+            if (Arguments[0] is "SHOW")
+            {
+                if (script.Context != ExecuteContext.ServerConsole)
+                    return new(false, "The 'SHOW' subcommand must be executed from the server console.");
+                bool generatorResult = API.Features.ScriptHelpGenerator.Generator.PromptDocFolder(out string message);
+                return new(generatorResult, message);
+            }
 
             if (script.Sender is ServerConsoleSender) IsFile = true;
             if (Arguments.Length > 1 && Arguments[1].ToUpper() == "NOFILE" && script.Sender is ServerConsoleSender) IsFile = false;
 
+            ActionResponse text = GenerateText(Arguments[0].ToUpper(), script, IsFile);
+            return Display(text);
+        }
+
+        public static ActionResponse GenerateText(string text, Script script = null, bool nofile = false)
+        {
+            if (text is "USE-WELCOME-TEXT")
+            {
+                string newText = $@"
+Welcome to the HELP command! This command is your one-stop shop for all {MainPlugin.Singleton.Name} documentation and information.
+
+The most powerful feature of this command is the ability to generate all of SE's documentation directly onto your computer.
+To do so, run 'shelp GENERATE' (must be done in the server console). This will open a config file. Complete this file and then run 'shelp GDONE' to create documentation.
+From there, using 'shelp SHOW' in the future will open the documentation folder directly on your computer!
+Whenever SE updates, re-run 'shelp GENERATE' to ensure your documentation remains updated.
+
+If you don't want to generate documentation on your computer, please use one of the following options to continue instead:
+- 'LIST' - Lists all available actions.
+- 'LISTVAR' - Lists all available variables.
+- 'LISTENUM' - Lists all enums that are used in {MainPlugin.Singleton.Name}, and show more info about enums.
+- An error code returned from an error message (example: 'SE-101').
+
+Every value returned from those lists can also be used in shelp to retrieve documentation about specific features. For example, 'TESLA' will give you more information about the TESLA action.
+Struggling? Join our Discord server for immediate and useful assistance: {MainPlugin.DiscordUrl}
+Interested in helping others learn the plugin? Let {MainPlugin.Singleton.Author} know on Discord. We'd be happy to have you on our team of volunteer helpers!
+Thanks for using our plugin. <3
+
+Scripted Events Contributors:
+{Constants.GenerateContributorList('-')}";
+                return new(true, newText);
+            }
+
             // List Help
-            if (Arguments[0].ToUpper() == "LIST")
+            if (text is "LIST" or "ACTIONS" or "ACTS")
             {
                 StringBuilder sbList = StringBuilderPool.Pool.Get();
                 sbList.AppendLine();
                 sbList.AppendLine($"List of all actions. For more information on each action, run the HELP <ACTIONNAME> action (or shelp <ACTIONNAME> in the server console).");
 
                 List<IAction> temp = ListPool<IAction>.Pool.Get();
-                foreach (KeyValuePair<ActionNameData, Type> kvp in ScriptHelper.ActionTypes)
+                foreach (KeyValuePair<ActionNameData, Type> kvp in MainPlugin.ScriptModule.ActionTypes)
                 {
                     IAction lAction = Activator.CreateInstance(kvp.Value) as IAction;
                     temp.Add(lAction);
@@ -94,19 +154,20 @@
                 }
 
                 ListPool<IAction>.Pool.Return(temp);
-                return Display(new(true, StringBuilderPool.Pool.ToStringReturn(sbList)));
+                return new(true, StringBuilderPool.Pool.ToStringReturn(sbList));
             }
 
             // List Variables
-            if (Arguments[0].ToUpper() is "LISTVAR" or "VARLIST")
+            if (text is "LISTVAR" or "VARLIST" or "VARIABLES" or "VARS")
             {
-                var conditionList = VariableSystem.Groups.OrderBy(group => group.GroupName);
+                var conditionList = VariableSystemV2.Groups.OrderBy(group => group.GroupName);
 
                 StringBuilder sbList = StringBuilderPool.Pool.Get();
                 sbList.AppendLine();
                 sbList.AppendLine("=== VARIABLES ===");
                 sbList.AppendLine("The following variables can all be used in conditions, such as IF, GOTOIF, WAITUNTIL, etc. Additionally, each RoleType has its own variable (eg. {NTFCAPTAIN}).");
                 sbList.AppendLine("An asterisk [*] before the name of a variable indicates it also stores players, which can be used in numerous actions such as SETROLE.");
+                sbList.AppendLine();
 
                 foreach (IVariableGroup group in conditionList)
                 {
@@ -119,30 +180,29 @@
                     sbList.AppendLine();
                 }
 
-                sbList.AppendLine("+ Script Defined +");
-                sbList.AppendLine("These variables are defined by a script. These variables can be used in any script and are erased when the round restarts.");
-                if (VariableSystem.DefinedVariables.Count == 0)
-                {
-                    sbList.AppendLine("None");
-                }
-                else
-                {
-                    foreach (var userDefined in VariableSystem.DefinedVariables.OrderBy(v => v.Key))
-                    {
-                        sbList.AppendLine($"{userDefined.Value.Name}");
-                    }
+                return new(true, StringBuilderPool.Pool.ToStringReturn(sbList));
+            }
 
-                    foreach (var userDefined2 in VariableSystem.DefinedPlayerVariables.OrderBy(v => v.Key))
-                    {
-                        sbList.AppendLine($"[*] {userDefined2.Value.Name}");
-                    }
+            // List Enums
+            else if (text is "LISTENUM" or "ENUMLIST")
+            {
+                StringBuilder sbEnumList = StringBuilderPool.Pool.Get();
+                sbEnumList.AppendLine();
+                sbEnumList.AppendLine("=== ENUMS ===");
+                sbEnumList.AppendLine("Enums are, at the basic level, 'options' in code. Different 'Enum' inputs are required for various actions, such as roles, items, etc.");
+                sbEnumList.AppendLine("Type 'shelp <enum name>' to see each different enum's valid options.");
+                sbEnumList.AppendLine();
+
+                foreach (EnumDefinition def in EnumDefinitions.Definitions)
+                {
+                    sbEnumList.AppendLine($"{def.EnumType.Name} - {def.Description}");
                 }
 
-                return Display(new(true, StringBuilderPool.Pool.ToStringReturn(sbList)));
+                return new(true, StringBuilderPool.Pool.ToStringReturn(sbEnumList));
             }
 
             // Action Help
-            else if (ScriptHelper.TryGetActionType(Arguments[0].ToUpper(), out Type type))
+            else if (MainPlugin.ScriptModule.TryGetActionType(text, out Type type))
             {
                 IAction action = Activator.CreateInstance(type) as IAction;
 
@@ -151,7 +211,7 @@
 
                 StringBuilder sb = StringBuilderPool.Pool.Get();
 
-                if (helpInfo.ExpectedArguments.Length > 0)
+                if (action.ExpectedArguments is not null && action.ExpectedArguments.Length > 0)
                 {
                     sb.AppendLine();
                 }
@@ -161,11 +221,14 @@
                 sb.AppendLine($"Action type: {MsgGen.Display(action.Subgroup)}");
 
                 // Usage
-                sb.Append($"Usage: {action.Name}");
-                foreach (Argument arg in helpInfo.ExpectedArguments)
+                if (action.ExpectedArguments is not null)
                 {
-                    string[] chars = arg.Required ? new[] { "<", ">" } : new[] { "[", "]" };
-                    sb.Append($" {chars[0]}{arg.ArgumentName.ToUpper()}{chars[1]}");
+                    sb.Append($"Usage: {action.Name}");
+                    foreach (Argument arg in action.ExpectedArguments)
+                    {
+                        string[] chars = arg.Required ? new[] { "<", ">" } : new[] { "[", "]" };
+                        sb.Append($" {chars[0]}{arg.ArgumentName.ToUpper()}{chars[1]}");
+                    }
                 }
 
                 sb.AppendLine();
@@ -181,20 +244,35 @@
 
                 sb.AppendLine();
 
-                if (helpInfo.ExpectedArguments.Length > 0)
+                if (action.ExpectedArguments is not null)
                 {
-                    sb.AppendLine();
-                    sb.Append("Arguments:");
-                }
+                    if (action.ExpectedArguments.Length > 0)
+                    {
+                        sb.AppendLine();
+                        sb.Append("Arguments:");
+                    }
 
-                foreach (Argument arg in helpInfo.ExpectedArguments)
-                {
-                    string[] chars = arg.Required ? new[] { "<", ">" } : new[] { "[", "]" };
-                    sb.AppendLine();
-                    sb.AppendLine($"{chars[0]}{arg.ArgumentName}{chars[1]}");
-                    sb.AppendLine($"  Required: {(arg.Required ? "YES" : "NO")}");
-                    sb.AppendLine($"  Type: {arg.TypeString}");
-                    sb.AppendLine($"  {arg.Description}");
+                    foreach (Argument arg in action.ExpectedArguments)
+                    {
+                        string[] chars = arg.Required ? new[] { "<", ">" } : new[] { "[", "]" };
+                        sb.AppendLine();
+                        sb.AppendLine($"{chars[0]}{arg.ArgumentName}{chars[1]}");
+                        sb.AppendLine($"  Required: {(arg.Required ? "YES" : "NO")}");
+                        sb.AppendLine($"  Type: {arg.TypeString}");
+                        sb.AppendLine($"  {arg.Description}");
+
+                        if (arg is OptionsArgument options)
+                        {
+                            sb.AppendLine($"  Valid options for this argument:");
+                            foreach (Option option in options.Options)
+                            {
+                                if (option.Description is null)
+                                    sb.AppendLine($"    - '{option.Name}'");
+                                else
+                                    sb.AppendLine($"    - '{option.Name}' - {option.Description}");
+                            }
+                        }
+                    }
                 }
 
                 if (action is ISampleAction sampleAction)
@@ -219,20 +297,22 @@
                     }
                 }
 
-                return Display(new(true, StringBuilderPool.Pool.ToStringReturn(sb)));
+                return new(true, StringBuilderPool.Pool.ToStringReturn(sb));
             }
 
             // Variable help
-            else if (Arguments[0].StartsWith("{") && Arguments[0].EndsWith("}"))
+            else if (text.StartsWith("{") && text.EndsWith("}"))
             {
                 bool valid = false;
 
                 StringBuilder sb = StringBuilderPool.Pool.Get();
                 sb.AppendLine();
 
-                if (VariableSystem.TryGetVariable(Arguments[0].ToUpper(), out IConditionVariable variable, out bool reversed, script))
+                if (VariableSystemV2.TryGetVariable(text, script, out VariableResult res2, skipProcessing: true))
                 {
                     valid = true;
+                    IConditionVariable variable = res2.Variable;
+
                     sb.AppendLine("=== VARIABLE ===");
                     sb.AppendLine($"Name: {variable.Name}");
                     sb.AppendLine($"Description: {variable.Description}");
@@ -252,21 +332,14 @@
                     switch (variable)
                     {
                         case IBoolVariable @bool:
-                            bool value = reversed ? !@bool.Value : @bool.Value;
                             sb.AppendLine("Boolean (true/false)");
-
-                            // sb.AppendLine($"Current Value: {(value ? "TRUE" : "FALSE")}");
                             break;
                         case ILongVariable @long:
                         case IFloatVariable @float:
                             sb.AppendLine("Numerical");
-
-                            // sb.AppendLine($"Current Value: {@float.Value}");
                             break;
                         case IStringVariable @string:
                             sb.AppendLine("String (Text)");
-
-                            // sb.AppendLine($"Current Value: {@string.Value}");
                             break;
                     }
 
@@ -283,6 +356,18 @@
                             sb.AppendLine($"  Required: {(arg.Required ? "YES" : "NO")}");
                             sb.AppendLine($"  Type: {arg.TypeString}");
                             sb.AppendLine($"  {arg.Description}");
+
+                            if (arg is OptionsArgument options)
+                            {
+                                sb.AppendLine($"  Valid options for this argument:");
+                                foreach (Option option in options.Options)
+                                {
+                                    if (option.Description is null)
+                                        sb.AppendLine($"    - '{option.Name}'");
+                                    else
+                                        sb.AppendLine($"    - '{option.Name}' - {option.Description}");
+                                }
+                            }
                         }
                     }
 
@@ -299,23 +384,50 @@
                     return new(false, "Invalid variable provided for the HELP action.");
                 }
 
-                return Display(new(true, StringBuilderPool.Pool.ToStringReturn(sb)));
+                return new(true, StringBuilderPool.Pool.ToStringReturn(sb));
+            }
+
+            // Enum help
+            EnumDefinition match = EnumDefinitions.Definitions.FirstOrDefault(def => def.EnumType.Name.ToUpper() == text);
+            if (match is not null)
+            {
+                StringBuilder sbEnum = StringBuilderPool.Pool.Get();
+                sbEnum.AppendLine();
+                sbEnum.AppendLine($"=== ENUM ===");
+                sbEnum.AppendLine($"Name: {match.EnumType.Name}");
+                sbEnum.AppendLine(match.Description);
+                if (!string.IsNullOrWhiteSpace(match.LongDescription))
+                    sbEnum.AppendLine(match.LongDescription);
+
+                sbEnum.AppendLine();
+                sbEnum.AppendLine("Options:");
+                foreach (object item in match.ObjectItems)
+                {
+                    int n = Convert.ToInt32(item);
+                    sbEnum.AppendLine($"{n} - {item}");
+                }
+
+                return new(true, StringBuilderPool.Pool.ToStringReturn(sbEnum));
             }
 
             // Error Codes
-            if (Arguments[0].StartsWith("SE-"))
-                Arguments[0] = Arguments[0].Replace("SE-", string.Empty);
+            if (text.StartsWith("SE-"))
+                text = text.Replace("SE-", string.Empty);
 
-            if (int.TryParse(Arguments[0], out int res) && ErrorGen.TryGetError(res, out ErrorInfo info))
+            if (int.TryParse(text, out int res) && ErrorGen.TryGetError(res, out ErrorInfo info))
             {
                 StringBuilder sb = StringBuilderPool.Pool.Get();
                 sb.AppendLine();
-                sb.AppendLine($"=== ERROR CODE: SE-{res} ===");
-                sb.AppendLine($"ID: {info.Id}");
+                sb.AppendLine($"=== ERROR CODE ===");
+                sb.AppendLine($"ID: SE-{info.Id}");
+
+                if (script is not null && script.Debug)
+                    sb.AppendLine($"Internal ID: {info.Code}");
+
                 sb.AppendLine(info.Info);
                 sb.AppendLine(info.LongDescription);
 
-                return Display(new(true, StringBuilderPool.Pool.ToStringReturn(sb)));
+                return new(true, StringBuilderPool.Pool.ToStringReturn(sb));
             }
 
             // Nope
@@ -331,8 +443,8 @@
         {
             if (IsFile)
             {
-                string message = $"!-- HELPRESPONSE\nAuto Generated At: {DateTime.UtcNow:f}\nExpires: {DateTime.UtcNow.AddMinutes(5):f}\n{response.Message}";
-                string path = Path.Combine(ScriptHelper.ScriptPath, "HelpCommandResponse.txt");
+                string message = $"Auto Generated At: {DateTime.UtcNow:f}\nExpires: {DateTime.UtcNow.AddMinutes(5):f}\n{response.Message}";
+                string path = Path.Combine(MainPlugin.BaseFilePath, "HelpCommandResponse.txt");
 
                 if (File.Exists(path))
                     File.Delete(path);
@@ -343,12 +455,12 @@
                 }
                 catch (UnauthorizedAccessException)
                 {
-                    Log.Warn(ErrorGen.Get(114));
+                    Log.Warn(ErrorGen.Get(ErrorCode.IOHelpPermissionError));
                     return new(false, "HELP action error shown in server logs.");
                 }
                 catch (Exception e)
                 {
-                    Log.Warn($"{ErrorGen.Get(115)}: {e}");
+                    Log.Warn($"{ErrorGen.Get(ErrorCode.IOHelpError)}: {e}");
                     return new(false, "HELP action error shown in server logs.");
                 }
 
@@ -365,7 +477,7 @@
                 // Set file attributes
                 FileInfo info = new(path)
                 {
-                    Attributes = FileAttributes.Temporary,
+                    Attributes = FileAttributes.Temporary | FileAttributes.Hidden,
                 };
 
                 try

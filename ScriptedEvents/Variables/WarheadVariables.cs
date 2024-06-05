@@ -1,5 +1,9 @@
 ﻿namespace ScriptedEvents.Variables.Warhead
 {
+    using System;
+
+    using ScriptedEvents.API.Extensions;
+    using ScriptedEvents.Structures;
 #pragma warning disable SA1402 // File may only contain a single type.
     using ScriptedEvents.Variables.Interfaces;
 
@@ -11,52 +15,50 @@
 
         public IVariable[] Variables { get; } = new IVariable[]
         {
-            new DetonationTime(),
-            new WarheadCounting(),
-            new WarheadDetonated(),
+            new GeneralWarhead(),
         };
     }
 
-    public class DetonationTime : IFloatVariable
+    public class GeneralWarhead : IStringVariable, IArgumentVariable
     {
         /// <inheritdoc/>
-        public float Value => Warhead.DetonationTimer;
+        public string Name => "{WARHEAD}";
 
         /// <inheritdoc/>
-        public string Name => "{DETONATIONTIME}";
+        public string Description => "All-in-one variable for warhead related information.";
+
+        public Argument[] ExpectedArguments => new[]
+        {
+            new OptionsArgument("mode", true,
+                new("ISDETONATED"),
+                new("ISOPEN"),
+                new("ISARMED"),
+                new("ISCOUNTING"),
+                new("DETONATIONTIME")),
+        };
 
         /// <inheritdoc/>
-        public string Description => "The amount of time until the warhead detonates.";
-    }
+        public string Value
+        {
+            get
+            {
+                string mode = Arguments[0].ToUpper();
 
-    public class WarheadCounting : IBoolVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{WARHEADCOUNTING}";
+                return mode switch
+                {
+                    "ISDETONATED" => Warhead.IsDetonated.ToUpper(),
+                    "ISOPEN" => Warhead.IsKeycardActivated.ToUpper(),
+                    "ISARMED" => Warhead.LeverStatus.ToUpper(),
+                    "ISCOUNTING" => Warhead.IsInProgress.ToUpper(),
+                    "DETONATIONTIME" => Warhead.DetonationTimer.ToUpper(),
+                    _ => throw new ArgumentException("Invalid mode.", mode)
+                };
+            }
+        }
 
-        /// <inheritdoc/>
-        public string ReversedName => "{!WARHEADCOUNTING}";
+        public string[] RawArguments { get; set; }
 
-        /// <inheritdoc/>
-        public string Description => "Whether or not the Alpha Warhead is currently counting down.";
-
-        /// <inheritdoc/>
-        public bool Value => Warhead.IsInProgress;
-    }
-
-    public class WarheadDetonated : IBoolVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{WARHEADDETONATED}";
-
-        /// <inheritdoc/>
-        public string ReversedName => "{!WARHEADDETONATED}";
-
-        /// <inheritdoc/>
-        public string Description => "Whether or not the warhead has been detonated.";
-
-        /// <inheritdoc/>
-        public bool Value => Warhead.IsDetonated;
+        public object[] Arguments { get; set; }
     }
 #pragma warning restore SA1402 // File may only contain a single type.
 }

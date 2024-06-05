@@ -1,10 +1,11 @@
 ﻿namespace ScriptedEvents.Structures
 {
     using System;
+
     using Exiled.API.Features;
 
     /// <summary>
-    /// Represents an active countdown, used in the <see cref="API.Features.CountdownHelper"/>.
+    /// Represents an active countdown, used in the <see cref="API.Features.CountdownModule"/>.
     /// </summary>
     public readonly struct Countdown
     {

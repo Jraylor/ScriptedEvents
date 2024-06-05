@@ -6,8 +6,8 @@
 
     using Exiled.API.Features;
     using ScriptedEvents.Actions;
+    using ScriptedEvents.API.Modules;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
     /// <summary>
     /// A set of tools for other plugins to add actions to Scripted Events.
@@ -23,7 +23,7 @@
         /// <param name="assembly">The assembly to search through.</param>
         public static void RegisterActions(Assembly assembly)
         {
-            ScriptHelper.RegisterActions(assembly);
+            MainPlugin.ScriptModule.RegisterActions(assembly);
         }
 
         /// <summary>
@@ -55,13 +55,13 @@
 
             name = name.ToUpper();
 
-            if (ScriptHelper.CustomActions.ContainsKey(name))
+            if (MainPlugin.ScriptModule.CustomActions.ContainsKey(name))
             {
                 return "The custom action with the provided name already exists!";
             }
 
             CustomAction custom = new(name, action);
-            ScriptHelper.CustomActions.Add(name, custom);
+            MainPlugin.ScriptModule.CustomActions.Add(name, custom);
             Log.Info($"Assembly '{Assembly.GetCallingAssembly().GetName().Name}' has registered custom action: '{name}'.");
             return "Success";
         }
@@ -80,12 +80,12 @@
 
             name = name.ToUpper();
 
-            if (!ScriptHelper.CustomActions.ContainsKey(name))
+            if (!MainPlugin.ScriptModule.CustomActions.ContainsKey(name))
             {
                 return "The custom action with the provided name does not exist.";
             }
 
-            ScriptHelper.CustomActions.Remove(name);
+            MainPlugin.ScriptModule.CustomActions.Remove(name);
             return "Success";
         }
 
@@ -117,11 +117,12 @@
         /// Gets a list of players using the input string.
         /// </summary>
         /// <param name="input">Input string.</param>
+        /// /// <param name="script">Script object.</param>
         /// <param name="max">Maximum amount of players to get. Leave below zero for unlimited.</param>
         /// <returns>A <see cref="IEnumerable{T}"/> of players.</returns>
-        public static Player[] GetPlayers(string input, int max = -1)
+        public static Player[] GetPlayers(string input, Script script, int max = -1)
         {
-            ScriptHelper.TryGetPlayers(input, max, out PlayerCollection list);
+            ScriptModule.TryGetPlayers(input, max, out PlayerCollection list, script);
             return list.GetInnerList().ToArray();
         }
 
@@ -129,10 +130,11 @@
         /// Evaluates a string math equation, replacing all variables in the string.
         /// </summary>
         /// <param name="input">The input string.</param>
+        /// <param name="script">Script object.</param>
         /// <returns>A tuple indicating success and the value.</returns>
-        public static Tuple<bool, float> Math(string input)
+        public static Tuple<bool, float> Math(string input, Script script)
         {
-            bool success = ConditionHelperV2.TryMath(VariableSystem.ReplaceVariables(input), out MathResult result);
+            bool success = ConditionHelperV2.TryMath(VariableSystemV2.ReplaceVariables(input, script), out MathResult result);
             return new(success, result.Result);
         }
     }

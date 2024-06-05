@@ -2,7 +2,8 @@
 {
 #pragma warning disable SA1402 // File may only contain a single type
     using System;
-    using Exiled.API.Features;
+
+    using ScriptedEvents.Structures;
     using ScriptedEvents.Variables.Interfaces;
 
     public class WorldTimeVariables : IVariableGroup
@@ -13,97 +14,60 @@
         /// <inheritdoc/>
         public IVariable[] Variables { get; } = new IVariable[]
         {
-            new DayOfWeek(),
-            new DayOfMonth(),
-            new DayOfYear(),
-            new Month(),
-            new Year(),
-            new Tick(),
-            new Hour(),
+            new Time(),
         };
     }
 
-    public class DayOfWeek : IFloatVariable
+    public class Time : IFloatVariable, IArgumentVariable
     {
         /// <inheritdoc/>
-        public string Name => "{DAYOFWEEK}";
+        public string Name => "{TIME}";
 
         /// <inheritdoc/>
-        public string Description => "The current real-world day of the week, from 1-7, in UTC time.";
+        public string Description => "All-in-one variable for time related information. All time information is based on the UTC timezone.";
+
+        public string[] RawArguments { get; set; }
+
+        public object[] Arguments { get; set; }
+
+        public Argument[] ExpectedArguments => new[]
+        {
+            new OptionsArgument("mode", true,
+                new("TICK", "The amount of seconds since 1.1.1970"),
+                new("SECOND", "0-59"),
+                new("MINUTE", "0-59"),
+                new("HOUR", "0-23"),
+                new("YEAR", "The amount of years since the birth of Christ"),
+                new("DAYOFWEEK", "1-7 (Warning! This follows the US system, where Saturday is the first day of the week)"),
+                new("DAYOFMONTH", "0-31"),
+                new("DAYOFYEAR", "0-366"),
+                new("ROUNDMINUTES", "The amount of elapsed round time, in minutes."),
+                new("ROUNDSECONDS", "The amount of elapsed round time, in seconds."),
+                new("ROUNDSTART", "The amount of time remaining before the round starts. -1 if round already started.")),
+        };
 
         /// <inheritdoc/>
-        public float Value => ((int)DateTime.UtcNow.DayOfWeek) + 1;
-    }
-
-    public class DayOfMonth : IFloatVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{DAYOFMONTH}";
-
-        /// <inheritdoc/>
-        public string Description => "The current real-world day of the month, from 1-31, in UTC time.";
-
-        /// <inheritdoc/>
-        public float Value => DateTime.UtcNow.Day;
-    }
-
-    public class DayOfYear : IFloatVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{DAYOFYEAR}";
-
-        /// <inheritdoc/>
-        public string Description => "The current real-world day of the year, from 1-366, in UTC time.";
-
-        /// <inheritdoc/>
-        public float Value => DateTime.UtcNow.DayOfYear;
-    }
-
-    public class Month : IFloatVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{MONTH}";
-
-        /// <inheritdoc/>
-        public string Description => "The current real-world month, from 1-12, in UTC time.";
-
-        /// <inheritdoc/>
-        public float Value => DateTime.UtcNow.Month;
-    }
-
-    public class Year : IFloatVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{YEAR}";
-
-        /// <inheritdoc/>
-        public string Description => "The current real-world year, from 1-9999, in UTC time.";
-
-        /// <inheritdoc/>
-        public float Value => DateTime.UtcNow.Year;
-    }
-
-    public class Tick : ILongVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{TICK}";
-
-        /// <inheritdoc/>
-        public string Description => $"The amount of seconds since {new DateTime(1970, 1, 1):f}.";
-
-        /// <inheritdoc/>
-        public long Value => (long)(DateTime.UtcNow - MainPlugin.Epoch).TotalSeconds;
-    }
-
-    public class Hour : IFloatVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{HOUR}";
-
-        /// <inheritdoc/>
-        public string Description => $"The current real-world hour, from 0-23.";
-
-        /// <inheritdoc/>
-        public float Value => DateTime.UtcNow.Hour;
+        public float Value
+        {
+            get
+            {
+                string mode = Arguments[0].ToString().ToUpper();
+                return mode switch
+                {
+                    "TICK" => (long)(DateTime.UtcNow - MainPlugin.Epoch).TotalSeconds,
+                    "SECOND" => DateTime.UtcNow.Second,
+                    "MINUTE" => DateTime.UtcNow.Minute,
+                    "HOUR" => DateTime.UtcNow.Hour,
+                    "YEAR" => DateTime.UtcNow.Year,
+                    "DAYOFWEEK" => ((int)DateTime.UtcNow.DayOfWeek) + 1,
+                    "DAYOFMONTH" => DateTime.UtcNow.Day,
+                    "DAYOFYEAR" => DateTime.UtcNow.DayOfYear,
+                    "ROUNDMINUTES" => (float)Exiled.API.Features.Round.ElapsedTime.TotalMinutes,
+                    "ROUNDSECONDS" => (float)Exiled.API.Features.Round.ElapsedTime.TotalSeconds,
+                    "ROUNDSTART" => Exiled.API.Features.Round.LobbyWaitingTime,
+                    _ => throw new ArgumentException($"Provided mode '{mode}' is incorrect"),
+                };
+            }
+        }
     }
 }

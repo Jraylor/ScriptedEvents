@@ -7,12 +7,12 @@
     using Exiled.API.Features;
 
     using ScriptedEvents.API.Enums;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Interfaces;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
-    public class KillAction : IScriptAction, IHelpInfo
+    public class KillAction : IScriptAction, IHelpInfo, ILongDescription
     {
         /// <inheritdoc/>
         public string Name => "KILL";
@@ -21,7 +21,10 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Health;
@@ -30,29 +33,31 @@
         public string Description => "Kills the targeted players.";
 
         /// <inheritdoc/>
+        public string LongDescription => $@"A base-game DamageType may be used to provide a base-game death message. Alternatively, a custom message may be used instead of a DamageType.
+A full list of valid DamageType IDs (as of {DateTime.Now:g}) follows:
+{string.Join("\n", ((DamageType[])Enum.GetValues(typeof(DamageType))).Select(r => $"- [{r:d}] {r}"))}";
+
+        /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("players", typeof(Player[]), "The players to kill.", true),
-            new Argument("damageType", typeof(DamageType), $"The {nameof(DamageType)} to apply, 'VAPORIZE' to vaporize the body, or a custom death message. Default: Unknown", false),
+            new Argument("players", typeof(PlayerCollection), "The players to kill.", true),
+            new Argument("damageType", typeof(string), $"The {nameof(DamageType)} to apply, 'VAPORIZE' to vaporize the body, or a custom death message. Default: Unknown", false),
         };
 
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 1) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
-
-            if (!ScriptHelper.TryGetPlayers(Arguments[0], null, out PlayerCollection plys, script))
-                return new(false, plys.Message);
+            PlayerCollection plys = (PlayerCollection)Arguments[0];
 
             if (Arguments.Length > 1)
             {
                 bool useDeathType = true;
                 string customDeath = null;
 
-                if (!VariableSystem.TryParse(Arguments[1], out DamageType damageType, script))
+                if (!SEParser.TryParse((string)Arguments[1], out DamageType damageType, script))
                 {
                     useDeathType = false;
-                    customDeath = string.Join(" ", Arguments.Skip(1));
+                    customDeath = Arguments.JoinMessage(1);
                 }
 
                 foreach (Player player in plys)
@@ -68,8 +73,7 @@
                 return new(true);
             }
 
-            foreach (Player player in plys)
-                player.Kill(DamageType.Unknown);
+            foreach (Player player in plys) player.Kill(DamageType.Unknown);
 
             return new(true);
         }

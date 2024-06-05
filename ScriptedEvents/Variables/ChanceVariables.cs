@@ -1,8 +1,12 @@
 ﻿namespace ScriptedEvents.Variables.Chance
 {
+    using System;
+
+    using ScriptedEvents.API.Extensions;
+    using ScriptedEvents.API.Interfaces;
+    using ScriptedEvents.Structures;
 #pragma warning disable SA1402 // File may only contain a single type
     using ScriptedEvents.Variables.Interfaces;
-    using UnityEngine;
 
     public class ChanceVariables : IVariableGroup
     {
@@ -12,84 +16,57 @@
         /// <inheritdoc/>
         public IVariable[] Variables { get; } = new IVariable[]
         {
-            new Chance(),
-            new Chance3(),
-            new Chance5(),
-            new Chance10(),
-            new Chance20(),
-            new Chance100(),
+            new Rand(),
         };
     }
 
-    public class Chance : IFloatVariable
+    public class Rand : IFloatVariable, IArgumentVariable, ILongDescription
     {
         /// <inheritdoc/>
-        public string Name => "{CHANCE}";
+        public string Name => "{RANDOM}";
 
         /// <inheritdoc/>
-        public string Description => "Always returns a random decimal between 0-1.";
+        public string Description => "Returns a random number from provided range.";
 
         /// <inheritdoc/>
-        public float Value => Random.value;
-    }
-
-    public class Chance3 : IFloatVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{CHANCE3}";
+        public string[] RawArguments { get; set; }
 
         /// <inheritdoc/>
-        public string Description => "Always returns a random number from 1-3.";
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
-        public float Value => Random.Range(1, 4);
-    }
+        public Argument[] ExpectedArguments => new[]
+        {
+                new OptionsArgument("type", true,
+                    new("INT", "Will return an integer."),
+                    new("FLOAT", "Will return a decimal (floating point) number.")),
+                new Argument("startNumber", typeof(object), "A starting number of the random range.", true),
+                new Argument("endNumber", typeof(object), "An ending number of the random range.", true),
+        };
 
-    public class Chance5 : IFloatVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{CHANCE5}";
+        public string LongDescription => $@"The return value will be a random number from the provided range, depending on the numbers and the type.
 
-        /// <inheritdoc/>
-        public string Description => "Always returns a random number from 1-5.";
+If 'type' is set to 'INT':
+> act PRINT My integer is {{RANDOM:INT:1:100}}
+> My integer is 60
 
-        /// <inheritdoc/>
-        public float Value => Random.Range(1, 6);
-    }
-
-    public class Chance10 : IFloatVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{CHANCE10}";
-
-        /// <inheritdoc/>
-        public string Description => "Always returns a random number from 1-10.";
+If 'type' is set to 'FLOAT':
+> act PRINT My float is {{RANDOM:FLOAT:0:1}}
+> My float is 0.35227";
 
         /// <inheritdoc/>
-        public float Value => Random.Range(1, 11);
-    }
-
-    public class Chance20 : IFloatVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{CHANCE20}";
-
-        /// <inheritdoc/>
-        public string Description => "Always returns a random number from 1-20.";
-
-        /// <inheritdoc/>
-        public float Value => Random.Range(1, 21);
-    }
-
-    public class Chance100 : IFloatVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{CHANCE100}";
-
-        /// <inheritdoc/>
-        public string Description => "Always returns a random number from 1-100.";
-
-        /// <inheritdoc/>
-        public float Value => Random.Range(1, 101);
+        public float Value
+        {
+            get
+            {
+                string mode = Arguments[0].ToUpper();
+                return mode switch
+                {
+                    "INT" => UnityEngine.Random.Range(Convert.ToInt32(Arguments[1]), Convert.ToInt32(Arguments[2]) + 1),
+                    "FLOAT" => UnityEngine.Random.Range(Convert.ToSingle(Arguments[1]), Convert.ToSingle(Arguments[2])),
+                    _ => throw new ArgumentException("Invalid type.", mode)
+                };
+            }
+        }
     }
 }

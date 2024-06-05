@@ -10,7 +10,6 @@
     using Exiled.API.Features;
     using Exiled.API.Features.Pools;
     using ScriptedEvents.API.Enums;
-    using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Interfaces;
     using ScriptedEvents.Structures;
     using ScriptedEvents.Variables;
@@ -27,7 +26,8 @@
         public Script()
         {
             Labels = DictionaryPool<string, int>.Pool.Get();
-            Flags = ListPool<string>.Pool.Get();
+            FunctionLabels = DictionaryPool<string, int>.Pool.Get();
+            Flags = ListPool<Flag>.Pool.Get();
             UniqueVariables = DictionaryPool<string, CustomVariable>.Pool.Get();
             UniquePlayerVariables = DictionaryPool<string, CustomPlayerVariable>.Pool.Get();
             UniqueId = Guid.NewGuid();
@@ -94,6 +94,11 @@
         public Dictionary<string, int> Labels { get; set; }
 
         /// <summary>
+        /// Gets or sets a list of function labels.
+        /// </summary>
+        public Dictionary<string, int> FunctionLabels { get; set; }
+
+        /// <summary>
         /// Gets the line the script is currently on.
         /// </summary>
         public int CurrentLine { get; private set; }
@@ -109,29 +114,34 @@
         public DateTime RunDate { get; set; }
 
         /// <summary>
+        /// Gets the amount of time the script has been running.
+        /// </summary>
+        public TimeSpan RunDuration => DateTime.UtcNow - RunDate;
+
+        /// <summary>
         /// Gets a list of flags on the script.
         /// </summary>
-        public List<string> Flags { get; }
+        public List<Flag> Flags { get; }
 
         /// <summary>
         /// Gets a value indicating whether or not the script is enabled.
         /// </summary>
-        public bool Disabled => Flags.Contains("DISABLE");
+        public bool Disabled => HasFlag("DISABLE");
 
         /// <summary>
         /// Gets a value indicating whether or not the script is running in debug mode.
         /// </summary>
-        public bool Debug => Flags.Contains("DEBUG");
+        public bool Debug => HasFlag("DEBUG") || MainPlugin.Configs.Debug;
 
         /// <summary>
         /// Gets a value indicating whether or not the script is marked as an admin-event (CedMod compatibility).
         /// </summary>
-        public bool AdminEvent => Flags.Contains("ADMINEVENT");
+        public bool AdminEvent => HasFlag("ADMINEVENT");
 
         /// <summary>
         /// Gets a value indicating whether or not warnings are suppressed.
         /// </summary>
-        public bool SuppressWarnings => Flags.Contains("SUPPRESSWARNINGS");
+        public bool SuppressWarnings => HasFlag("SUPPRESSWARNINGS");
 
         /// <summary>
         /// Gets the context that the script was executed in.
@@ -142,6 +152,21 @@
         /// Gets the sender of the user who executed the script.
         /// </summary>
         public ICommandSender Sender { get; internal set; }
+
+        /// <summary>
+        /// Gets or sets all line positions from where a JUMP action was executed.
+        /// </summary>
+        public List<int> JumpLines { get; set; } = new();
+
+        /// <summary>
+        /// Gets the original script which ran this script using the CALL action.
+        /// </summary>
+        public Script CallerScript { get; internal set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether an IF statement is blocking the execution of actions.
+        /// </summary>
+        public bool IfActionBlocksExecution { get; set; } = false;
 
         /// <summary>
         /// Gets or sets a <see cref="Dictionary{TKey, TValue}"/> of variables that are unique to this script.
@@ -158,6 +183,11 @@
         /// </summary>
         public List<CoroutineData> Coroutines { get; } = new();
 
+        /// <summary>
+        /// Gets or sets the info about an ongoing player loop.
+        /// </summary>
+        public PlayerLoopInfo PlayerLoopInfo { get; set; } = null;
+
         /// <inheritdoc/>
         public void Dispose()
         {
@@ -169,7 +199,7 @@
             FilePath = null;
 
             DictionaryPool<string, int>.Pool.Return(Labels);
-            ListPool<string>.Pool.Return(Flags);
+            ListPool<Flag>.Pool.Return(Flags);
             DictionaryPool<string, CustomVariable>.Pool.Return(UniqueVariables);
             DictionaryPool<string, CustomPlayerVariable>.Pool.Return(UniquePlayerVariables);
             GC.SuppressFinalize(this);
@@ -187,20 +217,29 @@
         /// <summary>
         /// Moves the <see cref="CurrentLine"/> to the specified location.
         /// </summary>
-        /// <param name="keyword">Keyword (NEXT, START, label, or number).</param>
+        /// <param name="keyword">Keyword (START, label, or number).</param>
         /// <returns>Whether or not the jump was successful.</returns>
-        public bool Jump(string keyword)
+        public bool JumpToLabel(string keyword)
         {
             switch (keyword.ToUpper())
             {
-                case "NEXT": // Simply return "true" as a success. It'll go to the next line automatically.
-                    return true;
                 case "START":
                     CurrentLine = -1;
                     return true;
             }
 
             if (Labels.TryGetValue(keyword, out int line))
+            {
+                CurrentLine = line;
+                return true;
+            }
+
+            return false;
+        }
+
+        public bool JumpToFunctionLabel(string keyword)
+        {
+            if (FunctionLabels.TryGetValue(keyword, out int line))
             {
                 CurrentLine = line;
                 return true;
@@ -220,14 +259,15 @@
         /// <param name="input">The input to log.</param>
         public void DebugLog(string input)
         {
-            if (Debug || MainPlugin.Configs.Debug)
+            if (Debug)
                 Log.Send($"[{MainPlugin.Singleton.Name}] [Script: {ScriptName}] [L: {CurrentLine + 1}] {input}", LogLevel.Debug, ConsoleColor.Gray);
         }
 
         /// <summary>
         /// Execute the script.
         /// </summary>
-        public void Execute() => ScriptHelper.RunScript(this);
+        /// <param name="dispose">Whether or not to dispose at conclusion of execution.</param>
+        public void Execute(bool dispose = true) => MainPlugin.ScriptModule.RunScript(this, dispose);
 
         /// <summary>
         /// Adds a variable.
@@ -237,6 +277,9 @@
         /// <param name="value">The value of the variable.</param>
         public void AddVariable(string name, string desc, string value)
         {
+            if (UniqueVariables.ContainsKey(name))
+                UniqueVariables.Remove(name);
+
             UniqueVariables.Add(name, new(name, desc, value));
         }
 
@@ -248,7 +291,22 @@
         /// <param name="value">The <see cref="IEnumerable{T}"/> of Players for this variable.</param>
         public void AddPlayerVariable(string name, string desc, IEnumerable<Player> value)
         {
+            if (UniquePlayerVariables.ContainsKey(name))
+                UniquePlayerVariables.Remove(name);
+
             UniquePlayerVariables.Add(name, new(name, desc, value.ToList()));
         }
+
+        public bool HasFlag(string key, out Flag flag)
+        {
+            flag = Flags.FirstOrDefault(fl => fl.Key == key);
+            return flag.Key is not null;
+        }
+
+        public bool HasFlag(string key)
+            => HasFlag(key, out _);
+
+        public void AddFlag(string key, IEnumerable<string> arguments = null)
+            => Flags.Add(new(key, arguments));
     }
 }

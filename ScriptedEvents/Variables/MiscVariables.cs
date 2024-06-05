@@ -1,11 +1,10 @@
 ﻿namespace ScriptedEvents.Variables.Misc
 {
 #pragma warning disable SA1402 // File may only contain a single type
-    using System;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Features;
     using ScriptedEvents.Structures;
     using ScriptedEvents.Variables.Interfaces;
-    using UnityEngine;
 
     public class MiscVariables : IVariableGroup
     {
@@ -15,20 +14,24 @@
         /// <inheritdoc/>
         public IVariable[] Variables { get; } = new IVariable[]
         {
-            new Round(),
+            new Storage(),
+            new Log(),
         };
     }
 
-    public class Round : IFloatVariable, IArgumentVariable, INeedSourceVariable
+    public class Log : IStringVariable, IArgumentVariable, INeedSourceVariable
     {
         /// <inheritdoc/>
-        public string Name => "{ROUND}";
+        public string Name => "{LOG}";
 
         /// <inheritdoc/>
-        public string Description => "Returns a rounded version of a variable.";
+        public string Description => "Shows the name of the variable with its value. Useful for quick debugging.";
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public Script Source { get; set; }
@@ -36,33 +39,47 @@
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-                new Argument("variable", typeof(IFloatVariable), "The name of the variable to round. Requires the variable to be a number.", true),
-                new Argument("mode", typeof(string), "Way of rounding the variable, either UP or DOWN.", true),
+             new Argument("variable", typeof(IConditionVariable), "The variable.", true),
         };
 
         /// <inheritdoc/>
-        public float Value
+        public string Value
         {
             get
             {
-                if (Arguments.Length < 1)
-                {
-                    throw new ArgumentException(MsgGen.VariableArgCount(Name, new[] { "variable" }));
-                }
+                IConditionVariable variable = (IConditionVariable)Arguments[0];
 
-                if (!VariableSystem.TryParse(Arguments[0], out float value, Source, false))
-                {
-                    throw new ArgumentException(ErrorGen.Get(137, Arguments[0]));
-                }
+                return $"{variable.Name.Trim('{', '}')} = {variable.String()}";
+            }
+        }
+    }
 
-                string mode = Arguments.Length < 2 ? "UP" : Arguments[1];
+    public class Storage : IStringVariable, IArgumentVariable
+    {
+        /// <inheritdoc/>
+        public string Name => "{STORAGE}";
 
-                return mode.ToUpper() switch
-                {
-                    "UP" => Mathf.Ceil(value),
-                    "DOWN" => Mathf.Floor(value),
-                    _ => throw new ArgumentException($"'{mode}' is not a valid mode. Valid options: UP, DOWN"),
-                };
+        /// <inheritdoc/>
+        public string Description => "Retrives a variable from storage.";
+
+        /// <inheritdoc/>
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
+
+        /// <inheritdoc/>
+        public Argument[] ExpectedArguments => new[]
+        {
+            new Argument("variableName", typeof(string), "The variable name to retrive.", true),
+        };
+
+        /// <inheritdoc/>
+        public string Value
+        {
+            get
+            {
+                return VariableStorage.Read(RawArguments[0]);
             }
         }
     }

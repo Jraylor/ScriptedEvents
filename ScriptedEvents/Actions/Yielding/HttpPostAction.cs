@@ -2,15 +2,15 @@
 {
     using System;
     using System.Collections.Generic;
-    using System.Linq;
 
     using MEC;
 
     using ScriptedEvents.API.Enums;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Interfaces;
+    using ScriptedEvents.API.Modules;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
     using UnityEngine.Networking;
 
@@ -23,7 +23,10 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Yielding;
@@ -43,23 +46,17 @@ These variables are created as per-script variables, meaning they can only be us
         public Argument[] ExpectedArguments => new[]
         {
             new Argument("url", typeof(string), "The URL to send a POST request to.", true),
-            new Argument("body", typeof(string), "The body to send (JSON formatting). Variables are supported.", true),
+            new Argument("body", typeof(string), "The body to send (JSON formatting).", true),
         };
 
         /// <inheritdoc/>
         public float? Execute(Script script, out ActionResponse message)
         {
-            if (Arguments.Length < 1)
-            {
-                message = new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
-                return null;
-            }
-
-            string body = string.Join(" ", Arguments.Skip(1));
-            body = VariableSystem.ReplaceVariables(body, script);
+            string body = Arguments.JoinMessage(1);
+            body = VariableSystemV2.ReplaceVariables(body, script);
 
             string coroutineKey = $"HTTPPOST_COROUTINE_{DateTime.UtcNow.Ticks}";
-            CoroutineHandle handle = Timing.RunCoroutine(InternalSendHTTP(script, VariableSystem.ReplaceVariable(Arguments[0], script), body), coroutineKey);
+            CoroutineHandle handle = Timing.RunCoroutine(InternalSendHTTP(script, VariableSystemV2.ReplaceVariable(RawArguments[0], script), body), coroutineKey);
             CoroutineHelper.AddCoroutine("HTTPPOST", handle, script);
             message = new(true);
             return Timing.WaitUntilDone(handle);

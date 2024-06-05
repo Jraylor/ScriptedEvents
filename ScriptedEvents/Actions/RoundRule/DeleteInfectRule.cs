@@ -7,7 +7,6 @@
     using ScriptedEvents.API.Enums;
     using ScriptedEvents.API.Interfaces;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
     public class DeleteInfectRule : IScriptAction, IHelpInfo
     {
@@ -18,7 +17,10 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.RoundRule;
@@ -35,10 +37,7 @@
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 3) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
-
-            if (!VariableSystem.TryParse(Arguments[0], out RoleTypeId oldRole, script))
-                return new(MessageType.InvalidRole, this, "role", Arguments[0]);
+            RoleTypeId oldRole = (RoleTypeId)Arguments[0];
 
             MainPlugin.Handlers.InfectionRules.RemoveAll(rule => rule.OldRole == oldRole);
 

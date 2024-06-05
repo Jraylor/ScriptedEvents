@@ -2,8 +2,8 @@
 {
     using System.Collections.Generic;
     using System.Linq;
-    using Exiled.API.Features;
 
+    using Exiled.API.Features;
     using ScriptedEvents.Variables.Interfaces;
 
     public class CustomPlayerVariable : IFloatVariable, IPlayerVariable

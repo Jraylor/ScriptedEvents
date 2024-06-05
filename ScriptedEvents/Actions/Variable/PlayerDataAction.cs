@@ -1,14 +1,12 @@
 ﻿namespace ScriptedEvents.Actions
 {
-    using System;
-    using System.Linq;
     using Exiled.API.Features;
+
     using ScriptedEvents.API.Enums;
-    using ScriptedEvents.API.Features;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Interfaces;
+    using ScriptedEvents.API.Modules;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
-    using ScriptedEvents.Variables.Interfaces;
 
     public class PlayerDataAction : IScriptAction, IHelpInfo
     {
@@ -19,7 +17,10 @@
         public string[] Aliases => new[] { "PDATA" };
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Variable;
@@ -30,8 +31,11 @@
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("mode", typeof(string), "The mode to use (GET/SET/DELETE).", true),
-            new Argument("players", typeof(Player[]), "The players to affect.", true),
+            new OptionsArgument("mode", true,
+                new("GET", "Creates a variable containing the value of the player data."),
+                new("SET", "Sets the player data."),
+                new("DEL", "Deletes the player data.")),
+            new Argument("players", typeof(PlayerCollection), "The players to affect.", true),
             new Argument("keyName", typeof(string), "The name of the key.", true),
             new Argument("value", typeof(string), "GET - The variable to create containing the value of the accessed key, SET - The new value of the key, DELETE - N/A", false),
         };
@@ -39,41 +43,45 @@
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 3) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
+            PlayerCollection players = (PlayerCollection)Arguments[1];
 
-            if (!ScriptHelper.TryGetPlayers(Arguments[1], null, out PlayerCollection players, script))
-                return new(false, players.Message);
-
-            switch (Arguments[0].ToUpper())
+            switch (((string)Arguments[0]).ToUpper())
             {
                 case "GET" when Arguments.Length < 4:
                 case "SET" when Arguments.Length < 4:
                     return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
+
                 case "GET":
                     if (players.Length > 1)
                         return new(false, "The 'GET' mode of the PLAYERDATA action only works on variables with exactly one player!");
-                    string varName = Arguments[3];
+
+                    string varName = RawArguments[3];
+                    string keyName = (string)Arguments[2];
                     Player ply1 = players[0];
-                    if (ply1.SessionVariables.ContainsKey(Arguments[2]))
-                        VariableSystem.DefineVariable(varName, $"The result of a PLAYERDATA execution using 'GET' on player '{ply1.DisplayNickname}' with key '{varName}'.", ply1.SessionVariables[Arguments[2]].ToString(), script);
+
+                    if (ply1.SessionVariables.ContainsKey(keyName))
+                        VariableSystemV2.DefineVariable(varName, $"The result of a PLAYERDATA execution using 'GET' on player '{ply1.DisplayNickname}' with key '{varName}'.", ply1.SessionVariables[keyName].ToString(), script);
                     else
-                        VariableSystem.DefineVariable(varName, $"The result of a PLAYERDATA execution using 'GET' on player '{ply1.DisplayNickname}' with key '{varName}'.", "NONE", script);
+                        VariableSystemV2.DefineVariable(varName, $"The result of a PLAYERDATA execution using 'GET' on player '{ply1.DisplayNickname}' with key '{varName}'.", "NONE", script);
                     break;
+
                 case "SET":
+                    keyName = (string)Arguments[2];
                     foreach (Player ply in players)
                     {
-                        if (ply.SessionVariables.ContainsKey(Arguments[2]))
-                            ply.SessionVariables[Arguments[2]] = string.Join(" ", Arguments.Skip(3));
+                        if (ply.SessionVariables.ContainsKey(keyName))
+                            ply.SessionVariables[keyName] = VariableSystemV2.ReplaceVariables(Arguments.JoinMessage(3), script);
                         else
-                            ply.SessionVariables.Add(Arguments[2], string.Join(" ", Arguments.Skip(3)));
+                            ply.SessionVariables.Add(keyName, VariableSystemV2.ReplaceVariables(Arguments.JoinMessage(3), script));
                     }
 
                     break;
-                case "DELETE":
+                case "DEL":
+                    keyName = (string)Arguments[2];
                     foreach (Player ply in players)
                     {
-                        if (ply.SessionVariables.ContainsKey(Arguments[2]))
-                            ply.SessionVariables.Remove(Arguments[2]);
+                        if (ply.SessionVariables.ContainsKey(keyName))
+                            ply.SessionVariables.Remove(keyName);
                     }
 
                     break;

@@ -1,17 +1,16 @@
 ﻿namespace ScriptedEvents.Actions
 {
     using System;
-    using System.Linq;
 
     using Exiled.API.Features;
 
     using ScriptedEvents.API.Enums;
-    using ScriptedEvents.API.Features;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Interfaces;
+    using ScriptedEvents.API.Modules;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
-    public class CountdownAction : IScriptAction, IHelpInfo
+    public class CountdownAction : IScriptAction, IHelpInfo, ILongDescription
     {
         /// <inheritdoc/>
         public string Name => "COUNTDOWN";
@@ -20,7 +19,10 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Broadcast;
@@ -31,29 +33,29 @@
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("players", typeof(Player[]), "The players to show the countdown to.", true),
-            new Argument("duration", typeof(int), "The duration of the countdown. Variables are supported.", true),
-            new Argument("text", typeof(string), "The text to show on the broadcast. Variables are supported.", true),
+            new Argument("players", typeof(PlayerCollection), "The players to show the countdown to.", true),
+            new Argument("durationSeconds", typeof(long), "The duration of the countdown.", true),
+            new Argument("text", typeof(string), "The text to show on the broadcast.", true),
         };
+
+        public string LongDescription => $@"Countdowns use the broadcast system. As such, players who are given a countdown cannot see any other broadcasts until the countdown concludes or is terminated.
+
+The text of the broadcast will be formatted using the countdown_string Exiled config. If the text parameter is not provided, the text displayed will simply be 'Countdown'.";
 
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 2) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
+            PlayerCollection players = (PlayerCollection)Arguments[0];
 
-            if (!ScriptHelper.TryGetPlayers(Arguments[0], null, out PlayerCollection players, script))
-                return new(false, players.Message);
-
-            if (!VariableSystem.TryParse(Arguments[1], out long duration, script))
-                return new(MessageType.NotANumber, this, "duration", Arguments[1]);
+            long duration = (long)Arguments[1];
 
             string text = null;
 
             if (Arguments.Length > 2)
-                text = VariableSystem.ReplaceVariables(string.Join(" ", Arguments.Skip(2)), script);
+                text = VariableSystemV2.ReplaceVariables(Arguments.JoinMessage(2), script);
 
             foreach (Player ply in players)
-                CountdownHelper.AddCountdown(ply, text, TimeSpan.FromSeconds(duration), script);
+                MainPlugin.GetModule<CountdownModule>().AddCountdown(ply, text, TimeSpan.FromSeconds(duration), script);
 
             return new(true);
         }

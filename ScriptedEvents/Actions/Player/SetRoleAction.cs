@@ -1,17 +1,14 @@
 ﻿namespace ScriptedEvents.Actions
 {
     using System;
-    using System.Collections.Generic;
 
     using Exiled.API.Features;
 
     using PlayerRoles;
 
     using ScriptedEvents.API.Enums;
-    using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Interfaces;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
     public class SetRoleAction : IScriptAction, IHelpInfo
     {
@@ -22,46 +19,45 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Player;
 
         /// <inheritdoc/>
-        public string Description => "Sets all players to the given role.";
+        public string Description => "Sets all players to the given role with advanced settings.";
 
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("players", typeof(List<Player>), "The players to set the role as.", true),
+            new Argument("players", typeof(PlayerCollection), "The players to set the role as.", true),
             new Argument("role", typeof(RoleTypeId), "The role to set all the players as.", true),
-            new Argument("max", typeof(int), "The maximum amount of players to set the role of. Variables are supported. (default: unlimited).", false),
+            new Argument("spawnpoint", typeof(bool), "Use spawnpoint? default: true", false),
+            new Argument("inventory", typeof(bool), "Use default inventory? default: true", false),
         };
 
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 2) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
+            RoleTypeId roleType = (RoleTypeId)Arguments[1];
+            PlayerCollection players = (PlayerCollection)Arguments[0];
 
-            if (!VariableSystem.TryParse<RoleTypeId>(Arguments[1], out RoleTypeId roleType, script))
-                return new(MessageType.InvalidRole, this, "role", Arguments[1]);
+            bool setSpawnpoint = Arguments.Length == 2 || (bool)Arguments[2];
+            bool setInventory = Arguments.Length <= 3 || (bool)Arguments[3];
 
-            int max = -1;
+            RoleSpawnFlags flags = RoleSpawnFlags.None;
 
-            if (Arguments.Length > 2)
-            {
-                if (!VariableSystem.TryParse(Arguments[2], out max, script))
-                    return new(MessageType.NotANumber, this, "max", Arguments[2]);
+            if (setSpawnpoint)
+                flags |= RoleSpawnFlags.UseSpawnpoint;
 
-                if (max < 0)
-                    return new(MessageType.LessThanZeroNumber, this, "max", max);
-            }
+            if (setInventory)
+                flags |= RoleSpawnFlags.AssignInventory;
 
-            if (!ScriptHelper.TryGetPlayers(Arguments[0], max, out PlayerCollection plys, script))
-                return new(false, plys.Message);
-
-            foreach (Player player in plys)
-                player.Role.Set(roleType);
+            foreach (Player player in players)
+                player.Role.Set(roleType, flags);
 
             return new(true);
         }

@@ -7,12 +7,11 @@
     using System.Text.RegularExpressions;
 
     using Exiled.API.Features;
-    using ScriptedEvents.API.Extensions;
+    using ScriptedEvents.API.Modules;
     using ScriptedEvents.Conditions.Floats;
     using ScriptedEvents.Conditions.Interfaces;
     using ScriptedEvents.Conditions.Strings;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
 #pragma warning disable SA1600 // Remove this later
     public static class ConditionHelperV2
@@ -184,7 +183,7 @@
                 string[] split = input.Split(new[] { match.Symbol }, StringSplitOptions.RemoveEmptyEntries);
                 if (split.Length < 2)
                 {
-                    return new(false, false, $"Malformed condition provided! Condition: {raw}");
+                    return new(false, false, $"[F] Malformed condition provided! Condition: {raw}");
                 }
 
                 if (TryMath(split[0], out MathResult res1) && TryMath(split[1], out MathResult res2))
@@ -221,7 +220,7 @@
                 string[] split = input.Split(new[] { " " + match2.Symbol + " " }, StringSplitOptions.RemoveEmptyEntries);
                 if (split.Length < 2)
                 {
-                    return new(false, false, $"Malformed condition provided! Condition: {raw}");
+                    return new(false, false, $"[S] Malformed condition provided! Condition: {raw}");
                 }
 
                 return new(true, match2.Execute(split[0], split[1]), string.Empty);
@@ -232,7 +231,7 @@
 
         private static ConditionResponse EvaluateInternal(string input, Script source = null)
         {
-            string convertedInput = VariableSystem.ReplaceVariables(input, source);
+            string convertedInput = VariableSystemV2.ReplaceVariables(input, source);
             if (bool.TryParse(convertedInput, out bool boolResult))
                 return new ConditionResponse(true, boolResult, string.Empty);
 
@@ -248,7 +247,7 @@
                     foreach (string fragOr in orSplit)
                     {
                         source?.DebugLog($"FRAG [OR]: " + fragOr);
-                        string convertedFrag = VariableSystem.ReplaceVariables(fragOr, source);
+                        string convertedFrag = VariableSystemV2.ReplaceVariables(fragOr, source);
                         ConditionResponse eval = EvaluateSingleCondition(convertedFrag, group);
                         if (!eval.Success)
                         {

@@ -2,15 +2,17 @@
 {
     using System;
     using System.Collections.Generic;
+
     using Exiled.API.Features;
 
     using MEC;
 
     using ScriptedEvents.API.Enums;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Interfaces;
+    using ScriptedEvents.API.Modules;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
     public class WaitUntilDebugAction : ITimingAction, IHiddenAction, IHelpInfo
     {
@@ -21,7 +23,10 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Yielding;
@@ -32,20 +37,14 @@
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("condition", typeof(string), "The condition to check. Variables & Math are supported.", true),
+            new Argument("condition", typeof(string), "The condition to check. Math is supported.", true),
         };
 
         /// <inheritdoc/>
         public float? Execute(Script script, out ActionResponse message)
         {
-            if (Arguments.Length < 1)
-            {
-                message = new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
-                return null;
-            }
-
             string coroutineKey = $"WAITUNTIL_DEBUG_COROUTINE_{DateTime.UtcNow.Ticks}";
-            CoroutineHandle handle = Timing.RunCoroutine(InternalWaitUntil(script, string.Join(string.Empty, Arguments)), coroutineKey);
+            CoroutineHandle handle = Timing.RunCoroutine(InternalWaitUntil(script, Arguments.JoinMessage(0)), coroutineKey);
             CoroutineHelper.AddCoroutine("WAITUNTIL_DEBUG", handle, script);
 
             message = new(true);
@@ -57,7 +56,7 @@
             while (true)
             {
                 ConditionResponse response = ConditionHelperV2.Evaluate(input, script);
-                Log.Info($"CONDITION: {VariableSystem.ReplaceVariables(input, script)} \\\\ SUCCESS: {response.Success} \\\\ PASSED: {response.Passed}");
+                Log.Info($"CONDITION: {VariableSystemV2.ReplaceVariables(input, script)} \\\\ SUCCESS: {response.Success} \\\\ PASSED: {response.Passed}");
                 if (response.Success)
                 {
                     if (response.Passed)

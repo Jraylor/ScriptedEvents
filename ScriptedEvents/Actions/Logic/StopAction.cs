@@ -6,6 +6,7 @@
     using ScriptedEvents.API.Enums;
     using ScriptedEvents.API.Features;
     using ScriptedEvents.API.Interfaces;
+    using ScriptedEvents.API.Modules;
     using ScriptedEvents.Structures;
 
     public class StopAction : IScriptAction, ILogicAction, IHelpInfo
@@ -17,18 +18,21 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Logic;
 
         /// <inheritdoc/>
-        public string Description => "Stops the event execution at this line, or stop a script with the specific name.";
+        public string Description => "Stops script execution.";
 
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
         {
-            new Argument("scriptName", typeof(string), "The script name to be stopped. Leave empty to stop this script.", false),
+            new Argument("scriptName", typeof(string), "Leave empty to stop this script. Provide a script name to stop a specific script or use '*' to stop all scripts EXCEPT this script.", false),
         };
 
         /// <inheritdoc/>
@@ -36,13 +40,24 @@
         {
             if (Arguments.Length == 0) return new(true, flags: ActionFlags.StopEventExecution);
 
-            if (!Directory.Exists(ScriptHelper.ScriptPath))
+            string scriptName = (string)Arguments[0];
+
+            if (scriptName == "*")
             {
-                return new(false, ErrorGen.Get(127));
+                foreach (Script toStop in MainPlugin.ScriptModule.RunningScripts.Keys)
+                {
+                    if (toStop != script) MainPlugin.ScriptModule.StopScript(toStop);
+                }
+
+                return new(true);
             }
 
-            ScriptHelper.StopScripts(Arguments[0]);
+            if (!Directory.Exists(ScriptModule.BasePath))
+            {
+                return new(false, ErrorGen.Get(ErrorCode.IOMissing));
+            }
 
+            MainPlugin.ScriptModule.StopScripts(scriptName);
             return new(true);
         }
     }

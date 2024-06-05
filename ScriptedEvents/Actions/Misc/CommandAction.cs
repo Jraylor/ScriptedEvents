@@ -3,9 +3,10 @@
     using System;
 
     using ScriptedEvents.API.Enums;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Interfaces;
+    using ScriptedEvents.API.Modules;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
     public class CommandAction : IScriptAction, IHelpInfo, ILongDescription
     {
@@ -16,13 +17,16 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Misc;
 
         /// <inheritdoc/>
-        public string Description => "Runs a server command with full permission. Variables are supported.";
+        public string Description => "Runs a server command with full permission.";
 
         /// <inheritdoc/>
         public string LongDescription => @"This action executes commands as the server. Therefore, the command needs '/' before it if it's a RA command, or '.' before it if its a console command.
@@ -37,9 +41,7 @@ Note: Player variables will be converted to the amount of players when used dire
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            if (Arguments.Length < 1) return new(MessageType.InvalidUsage, this, null, (object)ExpectedArguments);
-
-            string text = VariableSystem.ReplaceVariables(string.Join(" ", Arguments), script);
+            string text = VariableSystemV2.ReplaceVariables(Arguments.JoinMessage(0), script);
             GameCore.Console.singleton.TypeCommand(text);
             return new(true, string.Empty);
         }

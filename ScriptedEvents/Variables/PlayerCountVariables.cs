@@ -1,14 +1,13 @@
 ﻿namespace ScriptedEvents.Variables.PlayerCount
 {
 #pragma warning disable SA1402 // File may only contain a single type.
-    using System;
     using System.Collections.Generic;
     using System.Linq;
 
-    using Exiled.API.Enums;
     using Exiled.API.Features;
     using Exiled.API.Features.Roles;
     using ScriptedEvents.API.Features;
+    using ScriptedEvents.API.Modules;
     using ScriptedEvents.Structures;
     using ScriptedEvents.Variables.Interfaces;
 
@@ -26,9 +25,10 @@
             new PlayersDead(),
             new Humans(),
             new Staff(),
-            new InRoom(),
             new NonePlayer(),
             new Scp096Targets(),
+            new Scp173Observers(),
+            new StoredPlayers(),
         };
     }
 
@@ -122,49 +122,6 @@
         public IEnumerable<Player> Players => Player.Get(player => player.RemoteAdminAccess);
     }
 
-    public class InRoom : IFloatVariable, IArgumentVariable, IPlayerVariable, INeedSourceVariable
-    {
-        /// <inheritdoc/>
-        public string Name => "{INROOM}";
-
-        /// <inheritdoc/>
-        public string Description => "The amount of players in the specified room.";
-
-        /// <inheritdoc/>
-        public string[] Arguments { get; set; }
-
-        /// <inheritdoc/>
-        public Argument[] ExpectedArguments => new[]
-        {
-            new Argument("roomType", typeof(RoomType), "The room to filter by.", false),
-        };
-
-        /// <inheritdoc/>
-        public Script Source { get; set; }
-
-        /// <inheritdoc/>
-        public float Value => Players.Count();
-
-        /// <inheritdoc/>
-        public IEnumerable<Player> Players
-        {
-            get
-            {
-                if (Arguments.Length < 1)
-                {
-                    throw new ArgumentException(MsgGen.VariableArgCount(Name, new[] { "roomType" }));
-                }
-
-                if (VariableSystem.TryParse<RoomType>(Arguments[0], out RoomType rt, Source, false))
-                {
-                    return Player.Get(plr => plr.CurrentRoom.Type == rt);
-                }
-
-                throw new ArgumentException($"Provided value '{Arguments[0]}' is not a valid RoomType or the variable does not provide a RoomType.");
-            }
-        }
-    }
-
     public class NonePlayer : IFloatVariable, IPlayerVariable
     {
         /// <inheritdoc/>
@@ -205,5 +162,69 @@
                 return list;
              }
         }
+    }
+
+    public class Scp173Observers : IFloatVariable, IPlayerVariable
+    {
+        /// <inheritdoc/>
+        public string Name => "{SCP173OBSERVERS}";
+
+        /// <inheritdoc/>
+        public string Description => "The amount of players that are looking at SCP-173.";
+
+        /// <inheritdoc/>
+        public float Value => Players.Count();
+
+        /// <inheritdoc/>
+        public IEnumerable<Player> Players
+        {
+            get
+            {
+                List<Player> list = new();
+                foreach (Player ply in Player.Get(PlayerRoles.RoleTypeId.Scp173))
+                {
+                    list.AddRange((ply.Role as Scp173Role).ObservingPlayers);
+                }
+
+                return list;
+            }
+        }
+    }
+
+    public class StoredPlayers : IPlayerVariable, IArgumentVariable, INeedSourceVariable
+    {
+        /// <inheritdoc/>
+        public string Name => "{STOREDPLAYERS}";
+
+        /// <inheritdoc/>
+        public string Description => "Retrieves the player variable from the variable storage.";
+
+        /// <inheritdoc/>
+        public IEnumerable<Player> Players
+        {
+            get
+            {
+                string playersAsString = VariableStorage.Read(RawArguments[0]);
+                List<Player> list = new();
+
+                if (ScriptModule.TryGetPlayers(playersAsString, null, out PlayerCollection collection, Source))
+                {
+                    return list;
+                }
+
+                return collection.ToList();
+            }
+        }
+
+        public string[] RawArguments { get; set; }
+
+        public object[] Arguments { get; set; }
+
+        public Argument[] ExpectedArguments => new[]
+        {
+            new Argument("variable", typeof(string), "The variable name to retrieve players from.", true),
+        };
+
+        public Script Source { get; set; }
     }
 }

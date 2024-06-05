@@ -5,9 +5,10 @@
     using Exiled.API.Features;
 
     using ScriptedEvents.API.Enums;
+    using ScriptedEvents.API.Extensions;
     using ScriptedEvents.API.Interfaces;
+    using ScriptedEvents.API.Modules;
     using ScriptedEvents.Structures;
-    using ScriptedEvents.Variables;
 
     public class PrintAction : IScriptAction, IHelpInfo
     {
@@ -18,13 +19,16 @@
         public string[] Aliases => Array.Empty<string>();
 
         /// <inheritdoc/>
-        public string[] Arguments { get; set; }
+        public string[] RawArguments { get; set; }
+
+        /// <inheritdoc/>
+        public object[] Arguments { get; set; }
 
         /// <inheritdoc/>
         public ActionSubgroup Subgroup => ActionSubgroup.Misc;
 
         /// <inheritdoc/>
-        public string Description => "Creates a log message in the console the script was executed from. Variables are supported.";
+        public string Description => "Creates a log message in the console the script was executed from.";
 
         /// <inheritdoc/>
         public Argument[] ExpectedArguments => new[]
@@ -35,7 +39,7 @@
         /// <inheritdoc/>
         public ActionResponse Execute(Script script)
         {
-            string message = VariableSystem.ReplaceVariables(string.Join(" ", Arguments), script);
+            string message = VariableSystemV2.ReplaceVariables(Arguments.JoinMessage(0), script);
 
             if (script.Sender is null || script.Context is ExecuteContext.Automatic)
             {
